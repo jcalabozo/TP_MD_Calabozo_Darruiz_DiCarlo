@@ -9,7 +9,7 @@ Análisis del dataset de pingüinos de Palmer (`penguins_size.csv`): análisis e
 ## Estructura del proyecto
 
 ```
-TP1/
+tp1-mineria-datos/
 ├── data/
 │   └── penguins_size.csv          # dataset provisto por la cátedra
 ├── docs/
@@ -51,6 +51,8 @@ Requisito: **Python 3.12** (es la versión con la que se probó).
    py -3.12 -m venv .venv
    .venv\Scripts\activate
    ```
+
+   Si instalaste Python con uv, `py -3.12` no lo encuentra: usá `py -V:Astral/CPython3.12`.
 
    **Linux / macOS**
    ```bash
@@ -104,7 +106,7 @@ Con el entorno activado:
 > ⚠️ **Siempre hacer el paso 3 antes de un `git pull`.** Si se edita el `.ipynb`, no se sincroniza y se hace pull, el siguiente `jupytext --sync` puede pisar esos cambios con la versión del `.py` que vino del repositorio.
 
 Recomendaciones:
-- Antes de subir cambios, reiniciar el kernel y ejecutar todo (**Restart & Run All**) para verificar que el notebook corre de principio a fin (tarda menos de un minuto).
+- Antes de subir cambios, reiniciar el kernel y ejecutar todo (**Restart & Run All**) para verificar que el notebook corre de principio a fin (tarda un par de minutos).
 - Si dos personas modifican la misma parte, git marca el conflicto en el `.py`, que se resuelve como cualquier archivo de código.
 - El notebook lee los datos desde `../data/`, así que se debe abrir desde la carpeta `notebooks/`.
 

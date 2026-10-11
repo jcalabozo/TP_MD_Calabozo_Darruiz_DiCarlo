@@ -52,8 +52,6 @@ Requisito: **Python 3.12** (es la versión con la que se probó).
    .venv\Scripts\activate
    ```
 
-   Si instalaste Python con uv, `py -3.12` no lo encuentra: usá `py -V:Astral/CPython3.12`.
-
    **Linux / macOS**
    ```bash
    python3.12 -m venv .venv

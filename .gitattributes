@@ -1,3 +1,8 @@
 # Normaliza los finales de línea (Windows / Mac / Linux) para evitar
 # diffs falsos en los archivos de texto
 * text=auto
+
+# Los PDF y PNG pueden no tener bytes nulos al principio y git los toma por texto:
+# se marcan como binarios para que nunca les convierta los finales de línea
+*.pdf binary
+*.png binary

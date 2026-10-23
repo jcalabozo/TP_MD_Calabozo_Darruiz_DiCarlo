@@ -1,0 +1,13 @@
+# Datos de la carátula del informe del TP2 de Minería de Datos, para generar
+# docs/informe.pdf con la plantilla de informe (tuia/_plantillas/informe/).
+
+carrera = "Tecnicatura Universitaria en Inteligencia Artificial"
+materia = "Minería de Datos"
+trabajo = "Trabajo Práctico N° 2"
+titulo = "Árboles de decisión, Bayes ingenuo y k-NN"
+periodo = "Año 2026 · 2° semestre"
+integrantes = [
+  "Calabozo, Josías",
+  "Darruiz, Ismael",
+  "Di Carlo, Sebastián",
+]

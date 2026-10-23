@@ -9,7 +9,7 @@ __pycache__/
 # Jupyter: se versiona solo el .py emparejado con jupytext
 # (el .ipynb es la copia local de cada integrante, con sus salidas)
 .ipynb_checkpoints/
-notebooks/*.ipynb
+*/notebooks/*.ipynb
 
 # Sistema operativo / editores
 .DS_Store

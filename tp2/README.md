@@ -11,7 +11,7 @@ Dos problemas con los modelos de las unidades 4 y 5:
 
 Todo se evalúa con dos particiones, 80/20 y 70/30, con `random_state = 63`.
 
-El entorno y la forma de trabajar con los notebooks (jupytext) son comunes a los dos TP: están en el [README del repo](../README.md).
+El entorno y la forma de trabajar con los notebooks (jupytext) son comunes a todos los TP: están en el [README del repo](../README.md).
 
 ## Archivos
 

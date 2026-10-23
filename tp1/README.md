@@ -6,7 +6,7 @@ Trabajo Práctico N° 1 de **Minería de Datos** (Tecnicatura Universitaria en I
 
 Análisis del dataset de pingüinos de Palmer (`penguins_size.csv`): análisis exploratorio, reducción de dimensionalidad (PCA, Isomap, t-SNE) y clustering (K-means y jerárquico), usando la especie como variable objetivo.
 
-El entorno y la forma de trabajar con los notebooks (jupytext) son comunes a los dos TP: están en el [README del repo](../README.md).
+El entorno y la forma de trabajar con los notebooks (jupytext) son comunes a todos los TP: están en el [README del repo](../README.md).
 
 ## Archivos
 

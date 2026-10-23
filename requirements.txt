@@ -1,4 +1,4 @@
-# Dependencias de los dos TP (probado con Python 3.12)
+# Dependencias de los TP (probado con Python 3.12)
 # IMPORTANTE: gap-stat se instala primero con un comando aparte (ver README).
 numpy==2.5.3
 pandas==3.0.6

@@ -23,7 +23,7 @@ TP_MD_Calabozo_Darruiz_DiCarlo/
 │   └── README.md
 ├── tp2/
 │   ├── data/                      # datasets provistos por la cátedra
-│   ├── docs/                      # consigna, informe (Markdown y PDF) y sus figuras
+│   ├── docs/                      # consigna del trabajo
 │   ├── notebooks/                 # notebook del TP (.py en git, .ipynb local)
 │   └── README.md
 ├── tp3/
@@ -84,7 +84,15 @@ Requisito: **Python 3.12** (es la versión con la que se probó). Un solo entorn
    > Si PowerShell no permite activar el entorno, ejecutar una vez:
    > `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 
-4. Generar los notebooks a partir de los `.py`:
+4. Registrar el entorno como kernel de Jupyter:
+
+   ```bash
+   python -m ipykernel install --user --name tp-mineria --display-name "Python 3.12 (TP MD)"
+   ```
+
+   Así aparece por nombre en VS Code (**Select Kernel → Jupyter Kernel…**) y en Jupyter, aunque la carpeta abierta no sea la del repo. El notebook del TP2 lo pide por ese nombre: si no está registrado, `jupyter nbconvert` no lo puede ejecutar.
+
+5. Generar los notebooks a partir de los `.py`:
 
    ```bash
    jupytext --sync tp1/notebooks/TP1_Mineria_Datos.py tp1/notebooks/TP1_Mineria_Datos_con_sexo.py tp2/notebooks/TP2_calabozo_darruiz_dicarlo.py tp3/notebooks/TP3_calabozo_darruiz_dicarlo.py
@@ -101,7 +109,7 @@ Con el entorno activado y desde la raíz del repo. Los ejemplos son del TP2; par
    jupytext --sync tp2/notebooks/TP2_calabozo_darruiz_dicarlo.py
    ```
 
-2. **Trabajar** en `tp2/notebooks/TP2_calabozo_darruiz_dicarlo.ipynb` con VS Code (kernel del `.venv`) o con `jupyter notebook`, como siempre.
+2. **Trabajar** en `tp2/notebooks/TP2_calabozo_darruiz_dicarlo.ipynb` con VS Code (kernel **Python 3.12 (TP MD)**) o con `jupyter notebook`, como siempre.
 
 3. **Al terminar**, pasar los cambios al `.py` y subirlos:
 

@@ -51,7 +51,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree
 
 # Métricas
-from sklearn.metrics import (accuracy_score, confusion_matrix, mean_absolute_error, mean_squared_error,
+from sklearn.metrics import (ConfusionMatrixDisplay, accuracy_score, mean_absolute_error, mean_squared_error,
                              precision_score, recall_score)
 
 # random_state que pide la consigna para las particiones y los modelos
@@ -107,12 +107,12 @@ empresas[NUMERICAS_EMPRESAS].describe().round(0)
 empresas["State"].value_counts()
 
 # %% [markdown]
-# Dos empresas tienen gasto 0 en I+D y tres en marketing: son valores posibles (una empresa puede no invertir en eso), así que los conservamos. `State` tiene tres estados con cantidades parecidas, de 322 a 344 empresas. Los máximos de `Profit` (476.485) y de `Administration` (321.652) están muy lejos de su tercer cuartil (155.577 y 129.139); lo revisamos en los atípicos.
+# Dos empresas tienen gasto 0 en I+D y tres en marketing. Son valores posibles, porque una empresa puede no invertir en eso, y los conservamos. `State` tiene tres estados con cantidades parecidas, de 322 a 344 empresas. Los máximos de `Profit` (476.485) y de `Administration` (321.652) están muy lejos de su tercer cuartil (155.577 y 129.139); lo revisamos en los atípicos.
 
 # %% [markdown]
 # ### 1.2 Distribuciones
 #
-# **Hipótesis.** Los gastos y la ganancia son montos de empresas de distintos tamaños, así que esperamos distribuciones amplias y quizás algunos valores extremos.
+# **Hipótesis.** Si las empresas son de tamaños muy distintos, esperamos distribuciones asimétricas: muchas empresas que gastan y ganan poco, y pocas que gastan y ganan mucho.
 
 # %%
 # Histograma de cada variable numérica, como en el notebook de árboles de regresión de la U4 (sección "Distribuciones")
@@ -124,7 +124,7 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Se cumple la hipótesis. `RyD_Spend` y `MarketingSpend` se reparten en todo su rango, sin una forma marcada. `Administration` está concentrada entre unos 110.000 y 135.000 dólares, con pocos valores sueltos a los dos lados, y `Profit` está casi toda por debajo de 200.000, pero unos pocos valores aislados estiran el eje hasta 476.000.
+# La hipótesis no se cumple. `RyD_Spend` y `MarketingSpend` se reparten en todo su rango, sin acumularse en los valores bajos. `Administration` está concentrada entre unos 110.000 y 135.000 dólares, con pocos valores sueltos a los dos lados. `Profit` está casi toda por debajo de 200.000, y solo unos pocos valores aislados estiran el eje hasta 476.000.
 
 # %% [markdown]
 # ### 1.3 Valores atípicos
@@ -184,7 +184,7 @@ plt.show()
 # %% [markdown]
 # La regla del rango intercuartílico marca 22 atípicos en `Administration` y 3 en `Profit`. Los de `Profit` son las tres últimas filas del archivo (997 a 999): ganan entre 334.000 y 476.000 dólares, cuando ninguna otra empresa llega a 200.000, y tienen los tres valores más altos de `Administration` (de 242.000 a 322.000).
 #
-# Se cumplen las dos partes de la hipótesis. En los gráficos de dispersión, casi todas las empresas forman una línea con `RyD_Spend` y con `MarketingSpend`, y las tres atípicas quedan muy por encima de esa línea con los tres gastos. Las tratamos como errores de carga y las sacamos. En `Administration`, la mayoría de las empresas forma una franja angosta y unas pocas quedan dispersas alrededor; las miramos después de limpiar.
+# Se cumplen las dos partes de la hipótesis. En los gráficos de dispersión, casi todas las empresas forman una línea con `RyD_Spend` y con `MarketingSpend`, y las tres atípicas quedan muy por encima de esa línea con los tres gastos. Las tratamos como errores de carga y las sacamos antes de dividir, porque la consigna pide limpiar el conjunto antes de generar las particiones. En `Administration`, la mayoría de las empresas forma una franja angosta y unas pocas quedan dispersas alrededor; las miramos después de limpiar.
 
 # %% [markdown]
 # ### 1.4 Limpieza
@@ -198,11 +198,12 @@ print(f"Quedan {len(empresas_limpio)} de {len(empresas)} empresas")
 # %%
 # Las empresas atípicas en Administration que quedan, comparadas con el resto: mínimo y máximo de cada variable
 atipicas_admin = empresas_limpio.drop(remove_outliers_iqr(empresas_limpio, "Administration").index)
-grupo = np.where(empresas_limpio.index.isin(atipicas_admin.index), "atípica en Administration", "resto")
-empresas_limpio.groupby(grupo)[NUMERICAS_EMPRESAS].agg(["count", "min", "max"]).round(0)
+grupo = np.where(empresas_limpio.index.isin(atipicas_admin.index), "atípicas en Administration", "resto")
+print(f"Empresas atípicas en Administration: {len(atipicas_admin)}")
+empresas_limpio.groupby(grupo)[NUMERICAS_EMPRESAS].agg(["min", "max"]).T.round(0)
 
 # %% [markdown]
-# Quedan 996 empresas. Las 19 atípicas en `Administration` que quedan gastan de 51.283 a 182.646 dólares en administración, mientras que el resto está entre 99.281 y 147.199. Sus otros gastos y su ganancia están dentro de los rangos del resto. Son montos posibles para un gasto de administración, así que las conservamos.
+# Quedan 996 empresas. Las 19 atípicas en `Administration` gastan de 51.283 a 182.646 dólares en administración, mientras que el resto está entre 99.281 y 147.199. Sus otros gastos y su ganancia están dentro de los rangos del resto. Como son montos posibles para un gasto de administración, las conservamos.
 
 # %% [markdown]
 # ### 1.5 Correlaciones
@@ -248,7 +249,7 @@ codificador_estado.categories_
 # %% [markdown]
 # ### 1.7 Particiones 80/20 y 70/30 y estandarización
 #
-# Dividimos con `random_state = 63` y después estandarizamos los gastos con la media y el desvío del entrenamiento de cada partición, como indica el apunte de la Unidad 4 («Estandarización vs separación de datos»): así el test no influye en nada de lo que se aprende. `Profit` no se estandariza, para que los errores queden en dólares.
+# Dividimos con `random_state = 63` y después estandarizamos los gastos con la media y el desvío del entrenamiento de cada partición, para que el test no influya en nada de lo que se aprende. `Profit` no se estandariza, para que los errores queden en dólares.
 #
 # Cada partición se guarda como `(X_train, X_test, y_train, y_test)`, los cuatro conjuntos que usan los notebooks de clase.
 
@@ -284,9 +285,11 @@ X_train.describe().round(2)
 # %% [markdown]
 # ## 2. Árboles de decisión para regresión
 #
-# En cada partición probamos 864 combinaciones: `max_depth` de 2 a 8, 10, 12, 15, 20 y sin límite; `min_samples_leaf` de 1 a 5, 7, 10, 15 y 20; y `min_samples_split` de 2, 4, 6, 8, 10, 15, 20 y 30. Cada combinación se evalúa con validación cruzada de 5 pliegues sobre el entrenamiento, con `GridSearchCV` como en el notebook de árboles de clasificación de la U4, y elegimos la de menor RMSE promedio, como propone el apunte de la Unidad 4. El test se usa una sola vez, al final.
+# En cada partición probamos 864 combinaciones: `max_depth` de 2 a 8, 10, 12, 15, 20 y sin límite; `min_samples_leaf` de 1 a 5, 7, 10, 15 y 20; y `min_samples_split` de 2, 4, 6, 8, 10, 15, 20 y 30. Cada combinación se evalúa con validación cruzada de 5 pliegues sobre el entrenamiento, y elegimos la de menor RMSE promedio. El test se usa una sola vez, al final.
 
 # %%
+# Búsqueda con GridSearchCV y validación cruzada de 5 pliegues, como en el notebook de árboles de clasificación
+# de la U4, con el RMSE en lugar del F1
 GRILLA_REGRESION = {"max_depth": [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, None],
                     "min_samples_leaf": [1, 2, 3, 4, 5, 7, 10, 15, 20],
                     "min_samples_split": [2, 4, 6, 8, 10, 15, 20, 30]}
@@ -329,7 +332,7 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Se cumple la hipótesis. Con `max_depth` de 2 a 4 el error es alto (de unos 10.000 a 3.300 dólares), y desde 6 o 7 niveles se estabiliza cerca de 1.800 (80/20) y 2.100 (70/30). `min_samples_leaf` tiene su mejor valor en el medio, con hojas de 4 empresas (80/20) y de 5 (70/30): con hojas más chicas el árbol ajusta el ruido del entrenamiento, y con hojas más grandes promedia empresas de ganancias distintas. `min_samples_split` no cambia el error hasta 8 o 10; con valores mayores, el árbol deja de dividir nodos chicos y el error sube.
+# Es lo que esperábamos. Con `max_depth` de 2 a 4 el error es alto (de unos 10.000 a 3.300 dólares), y desde 6 o 7 niveles se estabiliza cerca de 1.800 (80/20) y 2.100 (70/30). `min_samples_leaf` tiene su mejor valor en el medio, con hojas de 4 empresas (80/20) y de 5 (70/30): con hojas más chicas el árbol ajusta el ruido del entrenamiento, y con hojas más grandes promedia empresas de ganancias distintas. `min_samples_split` no cambia el error hasta 8 o 10; con valores mayores, el árbol deja de dividir nodos chicos y el error sube.
 
 # %%
 # Las 5 mejores combinaciones de cada partición, ordenadas por rank_test_score como en el notebook de
@@ -344,7 +347,7 @@ for nombre in PARTICIONES:
 pd.concat(mejores).round(0)
 
 # %% [markdown]
-# Con 80/20, la configuración elegida es `max_depth = 8`, `min_samples_leaf = 4` y `min_samples_split = 2` (RMSE de validación de 1.777 dólares), y con 70/30, `max_depth = 7`, `min_samples_leaf = 5` y `min_samples_split = 2` (2.077). Las primeras filas de cada partición empatan porque dan el mismo árbol: con hojas de al menos 4 empresas, un nodo con menos de 8 no se puede dividir en dos, así que `min_samples_split` de 2 a 8 no cambia nada (con hojas de 5, de 2 a 10). Ante un empate, `GridSearchCV` se queda con la primera combinación.
+# Con 80/20, la configuración elegida es `max_depth = 8`, `min_samples_leaf = 4` y `min_samples_split = 2` (RMSE de validación de 1.777 dólares), y con 70/30, `max_depth = 7`, `min_samples_leaf = 5` y `min_samples_split = 2` (2.077). Las primeras filas empatan porque dan el mismo árbol: mientras `min_samples_split` no supere el doble de `min_samples_leaf`, no cambia nada, ya que un nodo más chico no se puede dividir en dos hojas permitidas. Ante un empate, `GridSearchCV` se queda con la primera combinación.
 
 # %%
 # RMSE del árbol elegido en entrenamiento, validación y test (como la comparación de RMSE del notebook de
@@ -365,9 +368,9 @@ for nombre in PARTICIONES:
 pd.DataFrame(filas).set_index("Partición").round(0)
 
 # %% [markdown]
-# En test, el árbol elegido tiene un RMSE de 3.485 dólares con 80/20 y de 2.806 con 70/30, y un MAE de 1.046 y 940: menos de una décima parte del desvío de `Profit` (42.889, en la tabla de 1.1).
+# En test, el árbol elegido tiene un RMSE de 3.485 dólares con 80/20 y de 2.806 con 70/30, y un MAE de 1.046 y 940, menos de una décima parte del desvío de `Profit` (42.889, en la tabla de 1.1).
 #
-# El RMSE de entrenamiento (1.205 y 1.446) es menor que el de validación (1.777 y 2.077): hay algo de sobreajuste, el esperable en árboles de 156 y 99 hojas. El RMSE de test es mayor que el de validación y unas tres veces el MAE. Como el RMSE pesa más los errores grandes, eso indica que unas pocas empresas concentran buena parte del error.
+# El RMSE de entrenamiento (1.205 y 1.446) es menor que el de validación (1.777 y 2.077): hay algo de sobreajuste, esperable en árboles de 156 y 99 hojas. El RMSE de test es mayor que el de validación y unas tres veces el MAE, una señal de que unas pocas empresas tienen errores mucho más grandes que el resto.
 
 # %% [markdown]
 # ### El árbol con la mejor configuración
@@ -375,14 +378,14 @@ pd.DataFrame(filas).set_index("Partición").round(0)
 # **Hipótesis.** Por las correlaciones de la preparación, esperamos que el árbol corte primero por `RyD_Spend` y que casi no use `State`.
 
 # %%
-# Los tres primeros niveles del árbol de la partición 80/20, con plot_tree y max_depth=3 como en el notebook
-# de árboles de regresión de la U4 (el árbol completo tiene demasiadas hojas para leerse)
+# Los 4 primeros niveles del árbol de la partición 80/20 (max_depth=3 cuenta desde la raíz, que es el nivel 0),
+# con plot_tree como en el notebook de árboles de regresión de la U4 (el árbol completo no se puede leer)
 X_train, X_test, y_train, y_test = particiones_a["80/20"]
 arbol = busquedas_a["80/20"].best_estimator_
 plt.figure(figsize=(22, 8))
 plot_tree(arbol, feature_names=list(X_train.columns), max_depth=3, filled=True, rounded=True,
           impurity=False, fontsize=9, precision=2)
-plt.title(f"Árbol de regresión de la partición 80/20 ({arbol.get_n_leaves()} hojas; se muestran los 3 primeros niveles)")
+plt.title(f"Árbol de regresión de la partición 80/20 ({arbol.get_n_leaves()} hojas; se muestran los 4 primeros niveles)")
 plt.show()
 
 # %%
@@ -399,18 +402,19 @@ for barras in g.containers:
 plt.show()
 
 # %%
-# Los umbrales del gráfico están en desvíos estándar. Para leerlos en dólares: umbral × desvío + media del
-# entrenamiento. RyD_Spend es la primera de las columnas que estandarizó el escalador
+# El primer corte del árbol (el de la raíz, nodo 0) en desvíos estándar y en dólares: umbral × desvío + media
+# del entrenamiento. tree_.feature dice qué columna usa el nodo, y tree_.threshold, su umbral
 escalador = escaladores_a["80/20"]
-media = escalador.mean_[0]
-desvio = escalador.scale_[0]
-for umbral in [-0.86, 0.03, 0.85]:   # los cortes de los dos primeros niveles, leídos del gráfico
-    print(f"RyD_Spend <= {umbral} desvíos equivale a {umbral * desvio + media:,.0f} dólares")
+columna = X_train.columns[arbol.tree_.feature[0]]
+umbral = arbol.tree_.threshold[0]
+posicion = GASTOS.index(columna)   # posición de la columna en el escalador
+en_dolares = umbral * escalador.scale_[posicion] + escalador.mean_[posicion]
+print(f"{columna} <= {umbral:.2f} desvíos equivale a {en_dolares:,.0f} dólares")
 
 # %% [markdown]
-# Se cumple la hipótesis. El primer corte es por `RyD_Spend` en 0,03 desvíos, unos 82.000 dólares, y el segundo nivel también corta por `RyD_Spend`, en unos 41.000 y 120.000. Los tres primeros niveles usan solo esa variable; `MarketingSpend` y `Administration` aparecen recién en el cuarto. La importancia de `RyD_Spend` es 0,989 y la de `State`, 0, coherente con la correlación de 0,999 entre `Profit` y `RyD_Spend`.
+# Coincide con la hipótesis. El primer corte es por `RyD_Spend` en 0,03 desvíos, unos 82.000 dólares, y los dos niveles siguientes también cortan por `RyD_Spend`; `MarketingSpend` y `Administration` aparecen recién en el cuarto nivel. La importancia de `RyD_Spend` es 0,989 y la de `State`, 0, coherente con la correlación de 0,999 entre `Profit` y `RyD_Spend`.
 #
-# Los umbrales están en desvíos porque los gastos se estandarizaron en la preparación, como pide la consigna. Al árbol no le cambia nada: los árboles no requieren escalado (lo dice el notebook de árboles de clasificación de la U4), y estandarizar solo cambia la escala en la que se leen los umbrales.
+# Los umbrales están en desvíos porque los gastos se estandarizaron en la preparación, como pide la consigna. Al árbol no le cambia nada: compara cada variable con un umbral, y estandarizar mueve los umbrales sin cambiar qué empresas quedan de cada lado.
 
 # %% [markdown]
 # ### Valores reales y predichos
@@ -458,9 +462,9 @@ print(f"{y_test_80.index.isin(y_test_70.index).sum()} de las {len(y_test_80)} em
       "también están en el test 70/30")
 
 # %% [markdown]
-# Se cumple la hipótesis. Casi todos los puntos están sobre la diagonal: el error es menor a 1.000 dólares en el 90 % de las empresas del test 80/20 y en el 88 % del 70/30. Las atípicas en `Administration` tienen errores más grandes: son 7 de las 200 empresas del test 80/20 y aportan el 38 % del error cuadrático, y 8 de las 299 del 70/30, con el 41 %. El árbol casi no usa `Administration`, así que predice su ganancia con `RyD_Spend`, y la de esas empresas se aparta de esa relación.
+# Pasa lo que esperábamos. El error es menor a 1.000 dólares en el 90 % de las empresas del test 80/20 y en el 88 % del 70/30. Las atípicas en `Administration` tienen errores más grandes: son 7 de las 200 empresas del test 80/20 y aportan el 38 % del error cuadrático, y 8 de las 299 del 70/30, con el 41 %. El árbol casi no usa `Administration` y predice su ganancia con `RyD_Spend`, mientras que la de esas empresas se aparta de esa relación.
 #
-# Las 200 empresas del test 80/20 también están en el test 70/30, y en los dos gráficos se ven los mismos puntos alejados de la diagonal. Con 70/30, esos errores grandes se promedian entre 99 empresas más, y por eso su RMSE de test es menor aunque el árbol se entrena con menos empresas.
+# Las 200 empresas del test 80/20 también están en el test 70/30. Con 70/30, los mismos errores grandes se promedian entre 99 empresas más, y por eso su RMSE de test es menor aunque el árbol se entrena con menos datos.
 
 # %% [markdown]
 # ---
@@ -527,7 +531,7 @@ plt.show()
 drogas.groupby("Droga")[NUMERICAS_DROGAS].agg(["min", "max"])
 
 # %% [markdown]
-# Se cumple la hipótesis. En el histograma de `Na_a_K`, `DrogaY` ocupa sola la parte derecha: sus pacientes tienen siempre 15,0 o más, y los de las otras cuatro drogas, 14,6 o menos. `Edad` separa a `DrogaA` de `DrogaB`: todos los pacientes de `DrogaA` tienen 50 años o menos, y todos los de `DrogaB`, 51 o más. En las otras drogas, la edad cubre casi todo el rango.
+# Es lo que esperábamos. En el histograma de `Na_a_K`, `DrogaY` ocupa sola la parte derecha: sus pacientes tienen siempre 15,0 o más, y los de las otras cuatro drogas, 14,6 o menos. `Edad` separa a `DrogaA` de `DrogaB`: todos los pacientes de `DrogaA` tienen 50 años o menos, y todos los de `DrogaB`, 51 o más. En las otras drogas, la edad cubre casi todo el rango.
 
 # %% [markdown]
 # **Hipótesis.** La presión y el colesterol son criterios clínicos habituales para elegir un tratamiento, así que esperamos que algunas drogas aparezcan solo con ciertos valores. El sexo no debería influir.
@@ -543,7 +547,7 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Se cumple la hipótesis. Con presión alta solo aparecen `DrogaA`, `DrogaB` y `DrogaY`; `DrogaX` nunca tiene presión alta, y los 16 pacientes de `DrogaC` tienen presión baja y colesterol alto. El sexo se reparte de forma parecida en todas las drogas.
+# La hipótesis se confirma. Con presión alta solo aparecen `DrogaA`, `DrogaB` y `DrogaY`; `DrogaX` nunca tiene presión alta, y los 16 pacientes de `DrogaC` tienen presión baja y colesterol alto. El sexo se reparte de forma parecida en todas las drogas.
 
 # %% [markdown]
 # ### 3.3 Valores atípicos
@@ -557,7 +561,7 @@ atipicos_na_k = drogas.drop(remove_outliers_iqr(drogas, "Na_a_K").index)
 atipicos_na_k.groupby("Droga")["Na_a_K"].agg(["count", "min", "max"])
 
 # %% [markdown]
-# `Edad` no tiene atípicos. `Na_a_K` tiene 8, todos de `DrogaY`, con valores entre 32,9 y 38,2. Los conservamos: son valores posibles y están del lado de `Na_a_K` alto, donde solo hay pacientes de `DrogaY`, así que sacarlos solo quitaría ejemplos de esa droga.
+# `Edad` no tiene atípicos. `Na_a_K` tiene 8, todos de `DrogaY`, con valores entre 32,9 y 38,2. Los conservamos: son valores posibles y están del lado de `Na_a_K` alto, donde solo hay pacientes de `DrogaY`: sacarlos solo quitaría ejemplos de esa droga.
 
 # %% [markdown]
 # ### 3.4 Codificación de las variables categóricas
@@ -588,7 +592,7 @@ plt.title("Correlación de Spearman entre los atributos")
 plt.show()
 
 # %% [markdown]
-# Se cumple la hipótesis: todas las correlaciones están entre −0,15 y 0,10, así que los atributos son casi independientes entre sí. La variable objetivo no entra en la matriz porque es nominal, con cinco clases sin orden; su relación con los atributos la vimos en los gráficos por droga.
+# Coincide con la hipótesis: todas las correlaciones están entre −0,15 y 0,10, y los atributos son casi independientes entre sí. La variable objetivo no entra en la matriz porque es nominal, con cinco clases sin orden; su relación con los atributos la vimos en los gráficos por droga.
 
 # %% [markdown]
 # ### 3.6 Particiones estratificadas y estandarización
@@ -638,7 +642,7 @@ X_train, X_test, y_train, y_test = particiones_b["80/20"]
 X_train.describe().round(2)
 
 # %% [markdown]
-# La estratificación mantiene las proporciones de las drogas en cada conjunto, y en el entrenamiento `Edad` y `Na_a_K` quedan con media 0 y desvío 1. Los test son chicos: 40 pacientes en la partición 80/20 y 60 en la 70/30, con solo 3 y 5 pacientes de `DrogaB` y de `DrogaC`, así que un solo paciente de esas drogas es entre el 20 % y el 33 % de su clase en el test. Además, los 40 pacientes del test 80/20 también están en el test 70/30: las dos particiones no son independientes.
+# La estratificación mantiene las proporciones de las drogas en cada conjunto, y en el entrenamiento `Edad` y `Na_a_K` quedan con media 0 y desvío 1. Los test son chicos: 40 pacientes en la partición 80/20 y 60 en la 70/30, con solo 3 y 5 pacientes de `DrogaB` y de `DrogaC`. Un solo paciente de esas drogas es entre el 20 % y el 33 % de su clase en el test. Además, los 40 pacientes del test 80/20 también están en el test 70/30: las dos particiones no son independientes.
 
 # %% [markdown]
 # ## 4. Árboles de decisión para clasificación
@@ -713,7 +717,7 @@ for nombre in PARTICIONES:
 # %% [markdown]
 # Elegimos `ccp_alpha = 0`, es decir, no podar, en las dos particiones: es el de mayor F1 macro (0,966 y 0,965). La primera poda (`ccp_alpha` de 0,062 y 0,061) deja 4 hojas y baja el F1 a 0,828 (80/20) y 0,918 (70/30), y las siguientes lo bajan a 0,66 o menos.
 #
-# La post-poda quita hojas que ajustan el ruido del entrenamiento, y este árbol no tiene ninguna: cada hoja tiene pacientes de una sola droga, como se ve en el gráfico siguiente.
+# Ninguna poda mejora este árbol porque no le sobran hojas: cada hoja tiene pacientes de una sola droga, como se ve en el gráfico siguiente, y sacar cualquiera junta drogas distintas.
 
 # %% [markdown]
 # **Hipótesis.** Por lo que vimos en la preparación, esperamos que el árbol corte primero por `Na_a_K`, después por `BP`, y que use `Edad` y `Colesterol` para separar las drogas que comparten presión. La primera poda debería quitar la hoja que menos pacientes del entrenamiento separa.
@@ -726,25 +730,29 @@ primera_poda = DecisionTreeClassifier(random_state=SEMILLA, ccp_alpha=alpha_prim
                                       **busquedas_arbol["80/20"].best_params_)
 primera_poda.fit(X_train, y_train)
 
-fig, axes = plt.subplots(1, 2, figsize=(20, 7), gridspec_kw={"width_ratios": [3, 2]})
+fig, axes = plt.subplots(1, 2, figsize=(24, 8), gridspec_kw={"width_ratios": [3, 2]})
 plot_tree(arboles_b["80/20"], feature_names=list(X_train.columns), class_names=ORDEN_DROGAS,
-          filled=True, rounded=True, impurity=False, fontsize=10, precision=2, ax=axes[0])
+          filled=True, rounded=True, impurity=False, fontsize=9, precision=2, ax=axes[0])
 axes[0].set_title(f"Antes de podar: el árbol elegido, {arboles_b['80/20'].get_n_leaves()} hojas")
 plot_tree(primera_poda, feature_names=list(X_train.columns), class_names=ORDEN_DROGAS,
-          filled=True, rounded=True, impurity=False, fontsize=10, precision=2, ax=axes[1])
+          filled=True, rounded=True, impurity=False, fontsize=9, precision=2, ax=axes[1])
 axes[1].set_title(f"Después de la primera poda (ccp_alpha = {alpha_primera_poda:.3f}): {primera_poda.get_n_leaves()} hojas")
 fig.suptitle("Árbol de clasificación de la partición 80/20")
 plt.show()
 
 # %%
-# Los umbrales de Edad y Na_a_K del gráfico están en desvíos estándar. En su unidad: umbral × desvío + media
-# del entrenamiento. El escalador estandarizó Edad (posición 0) y Na_a_K (posición 1)
-escalador = escaladores_b["80/20"]
-print(f"Na_a_K <= -0.19 desvíos equivale a {-0.19 * escalador.scale_[1] + escalador.mean_[1]:.1f}")
-print(f"Edad <= 0.32 desvíos equivale a {0.32 * escalador.scale_[0] + escalador.mean_[0]:.1f} años")
+# Umbrales de Edad y Na_a_K del árbol de la partición 80/20, en desvíos estándar y en su unidad (umbral × desvío +
+# media del entrenamiento). tree_.feature dice qué columna usa cada nodo, y tree_.threshold, su umbral
+arbol = arboles_b["80/20"]
+escalador = escaladores_b["80/20"]   # estandarizó Edad (posición 0) y Na_a_K (posición 1)
+for posicion, columna in enumerate(NUMERICAS_DROGAS):
+    nodos = arbol.tree_.feature == list(X_train.columns).index(columna)
+    for umbral in arbol.tree_.threshold[nodos]:
+        en_unidad = umbral * escalador.scale_[posicion] + escalador.mean_[posicion]
+        print(f"{columna} <= {umbral:.2f} desvíos equivale a {en_unidad:.1f}")
 
 # %% [markdown]
-# Se cumple la hipótesis sobre los cortes. El árbol son 5 reglas:
+# La hipótesis sobre los cortes se confirma. El árbol se resume en 5 reglas:
 #
 # - `DrogaY` si `Na_a_K` es mayor a 14,8 (los 73 pacientes del entrenamiento con ese valor son de `DrogaY`);
 # - con presión alta (`BP` > 1,5), `DrogaA` hasta los 50 años y `DrogaB` desde los 51 (`Edad` ≤ 50,5);
@@ -753,23 +761,22 @@ print(f"Edad <= 0.32 desvíos equivale a {0.32 * escalador.scale_[0] + escalador
 #
 # No usa `Sexo`, como anticipaba la preparación. Como en la Parte A, los umbrales de `Edad` y `Na_a_K` del gráfico están en desvíos, y los de `BP` y `Colesterol` son sobre los códigos de la codificación.
 #
-# También se cumple la hipótesis sobre la poda: la primera junta en una sola hoja, que predice `DrogaX`, toda la rama de presión baja o normal, y así quita la hoja de los 13 pacientes de `DrogaC`, una de las dos más chicas.
+# La poda también hace lo que esperábamos: la primera junta en una sola hoja, que predice `DrogaX`, toda la rama de presión baja o normal, y así quita la hoja de los 13 pacientes de `DrogaC`, una de las dos más chicas.
 
 # %% [markdown]
 # **Hipótesis.** Si las reglas del árbol también valen fuera del entrenamiento, esperamos muy pocos errores en el test, y que los que haya sean de pacientes cerca de algún umbral.
 
 # %%
-# Adaptada de tableResult de U4_DesicionTreeClassifier.ipynb: dibuja la matriz de confusión con un mapa de
-# calor, para las dos particiones lado a lado (las métricas van en otra celda)
+# Matriz de confusión con ConfusionMatrixDisplay, como en los notebooks de Bayes y k-NN de la U5, para las dos
+# particiones lado a lado (las métricas van en otra celda)
 def graficar_matrices(modelos, titulo):
     """Matriz de confusión de cada modelo sobre el test de su partición."""
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     for ax, nombre in zip(axes, PARTICIONES):
         X_train, X_test, y_train, y_test = particiones_b[nombre]
         # labels fija el orden de las drogas, así aparecen todas aunque el modelo no prediga alguna
-        matriz = confusion_matrix(y_test, modelos[nombre].predict(X_test), labels=ORDEN_DROGAS)
-        sns.heatmap(matriz, annot=True, fmt="d", cmap="Blues", xticklabels=ORDEN_DROGAS,
-                    yticklabels=ORDEN_DROGAS, cbar=False, ax=ax)
+        ConfusionMatrixDisplay.from_predictions(y_test, modelos[nombre].predict(X_test), labels=ORDEN_DROGAS,
+                                                cmap=plt.cm.Blues, colorbar=False, ax=ax)
         ax.set(title=f"Test {nombre}", xlabel="Predicción", ylabel="Real")
     fig.suptitle(titulo)
     plt.tight_layout()
@@ -798,7 +805,7 @@ metricas_arbol = metricas_clasificacion(arboles_b)
 metricas_arbol.round(3)
 
 # %% [markdown]
-# Se cumple la hipótesis, sin ningún error: el árbol clasifica bien a todos los pacientes de los dos test, y las tres métricas valen 1. Con test tan chicos, acertar todos no garantiza acertar siempre con pacientes nuevos; el F1 macro de validación cruzada (0,966 y 0,965) es una estimación más prudente.
+# No hay ningún error, como esperábamos: el árbol clasifica bien a todos los pacientes de los dos test, y las tres métricas valen 1. Con test tan chicos, acertar todos no garantiza acertar siempre con pacientes nuevos; el F1 macro de validación cruzada (0,966 y 0,965) es una estimación más prudente.
 
 # %% [markdown]
 # ## 5. Bayes ingenuo
@@ -839,10 +846,10 @@ for nombre in PARTICIONES:
     print(f"Partición {nombre}: {intervalos_elegidos[nombre]} intervalos")
 
 # %%
-# Cortes de Edad y Na_a_K para cada cantidad de intervalos, en la partición 80/20, pasados de desvíos
-# estándar a su unidad (corte × desvío + media del entrenamiento)
+# Cortes de Edad y Na_a_K con 3, 4, 5 y 9 intervalos (las cantidades que comentamos), en la partición 80/20,
+# pasados de desvíos estándar a su unidad (corte × desvío + media del entrenamiento)
 escalador = escaladores_b["80/20"]   # estandarizó Edad (posición 0) y Na_a_K (posición 1)
-for n_intervalos in range(3, 11):
+for n_intervalos in [3, 4, 5, 9]:
     # El primer paso del pipeline es el ColumnTransformer; bin_edges_ tiene los cortes de cada columna
     intervalos = modelos_bayes[("80/20", n_intervalos)][0].named_transformers_["intervalos"]
     cortes_edad = intervalos.bin_edges_[0] * escalador.scale_[0] + escalador.mean_[0]
@@ -851,9 +858,9 @@ for n_intervalos in range(3, 11):
     print(f"             | Na_a_K: {np.round(cortes_na_k, 1).tolist()}")
 
 # %% [markdown]
-# El F1 macro no mejora de forma pareja con más intervalos: sube y baja. Con 80/20 el mejor es con 4 intervalos (0,894) y con 70/30, con 9 (0,882); con 3 es el peor en las dos particiones (0,691 y 0,639).
+# El F1 macro sube y baja con la cantidad de intervalos. Con 80/20 el mejor es con 4 (0,894) y con 70/30, con 9 (0,882); con 3 es el peor en las dos particiones (0,691 y 0,639). Elegimos el máximo, como en los otros modelos, aunque con pliegues de unos 30 pacientes la diferencia entre 4, 7 y 9 intervalos en la partición 80/20 (0,894, 0,878 y 0,879) puede ser ruido.
 #
-# Los cortes explican en parte ese zigzag. El F1 depende de que algún corte caiga cerca de las dos fronteras que vimos en la preparación: `Na_a_K` alrededor de 15 (`DrogaY` contra el resto) y `Edad` entre 50 y 51 (`DrogaA` contra `DrogaB`). Con 3 intervalos, el del medio de `Na_a_K` va de 11,4 a 18,3 y mezcla a `DrogaY` con las demás drogas. Con 4 hay un corte de `Na_a_K` en 14,0, cerca de la frontera, aunque los de `Edad` caen en 46,5 y 59. Con 9 hay un corte de `Na_a_K` justo en 15,0. La discretización por igual frecuencia no conoce las drogas, así que acertar una frontera depende de la cantidad de intervalos. Además, con más intervalos cada uno tiene menos pacientes (con 10, unos 16 del entrenamiento), y las probabilidades del modelo se apoyan en menos casos.
+# El zigzag depende de que algún corte caiga cerca de las dos fronteras de la preparación: `Na_a_K` alrededor de 15 (`DrogaY` contra el resto) y `Edad` entre 50 y 51 (`DrogaA` contra `DrogaB`). Con 3 intervalos, el del medio de `Na_a_K` va de 11,4 a 18,3 y mezcla a `DrogaY` con las demás. Con 4 hay un corte de `Na_a_K` en 14,0, cerca de la frontera, y con 9, uno justo en 15,0. La discretización por igual frecuencia no conoce las drogas, y acertar una frontera depende de la cantidad de intervalos.
 
 # %% [markdown]
 # **Hipótesis.** Esperamos errores en los pacientes cuyos valores caen en un intervalo que mezcla drogas. Con los 4 intervalos de la partición 80/20, el de 46,5 a 59 años junta pacientes de `DrogaA` (hasta 50) y de `DrogaB` (desde 51), y el de `Na_a_K` de 14,0 a 19,7 junta a `DrogaY` con pacientes de otras drogas.
@@ -883,20 +890,22 @@ def mal_clasificados(modelos):
 mal_clasificados(mejores_bayes)
 
 # %% [markdown]
-# Se cumple la hipótesis en tres de los cuatro errores del test 80/20. Dos pacientes de `DrogaB`, de 53 y 57 años, caen en el intervalo de 46,5 a 59 y se clasifican como `DrogaA`, y uno de `DrogaA` con `Na_a_K` de 13,97, en el borde del corte de 14,0, como `DrogaY`. Con 70/30 hay un solo error: el mismo paciente de `DrogaB` de 53 años.
+# Tres de los cuatro errores del test 80/20 son los que esperábamos: dos pacientes de `DrogaB`, de 53 y 57 años, caen en el intervalo de 46,5 a 59 y se clasifican como `DrogaA`, y uno de `DrogaA` con `Na_a_K` de 13,97, en el borde del corte de 14,0, como `DrogaY`. Con 70/30 hay un solo error, el mismo paciente de `DrogaB` de 53 años.
 #
-# El cuarto error del test 80/20 muestra el supuesto de independencia del modelo: un paciente de `DrogaC`, con presión baja y colesterol alto, se clasifica como `DrogaX`. Bayes ingenuo mira la presión y el colesterol por separado, y `DrogaX` tiene muchos pacientes con presión baja (18) y muchos con colesterol alto (20), aunque esa combinación sea la de `DrogaC` en el árbol. Además, `DrogaX` es más de tres veces más frecuente que `DrogaC`.
+# El cuarto error muestra el supuesto de independencia del modelo. Un paciente de `DrogaC`, con presión baja y colesterol alto, se clasifica como `DrogaX`: Bayes ingenuo mira la presión y el colesterol por separado, y `DrogaX` tiene muchos pacientes con presión baja (18) y muchos con colesterol alto (20), aunque esa combinación sea la de `DrogaC`. Además, `DrogaX` es más de tres veces más frecuente que `DrogaC`.
 #
-# Con 80/20, la exhaustividad macro (0,760) queda muy por debajo de la precisión macro (0,906): `DrogaB` tiene 3 pacientes en el test y 2 mal clasificados, así que su exhaustividad es de 1 de 3. Con 70/30, las tres métricas son de 0,96 o más.
+# Con 80/20, la exhaustividad macro (0,760) queda muy por debajo de la precisión macro (0,906), porque `DrogaB` tiene 3 pacientes en el test y 2 mal clasificados.
 
 # %% [markdown]
 # ## 6. k-NN
 #
-# Probamos los k impares de 1 a 31 (como el `range(1, 15, 2)` de `Unidad5.py`, pero más amplio) con las distancias euclidiana y Manhattan, y elegimos la combinación con mayor F1 macro de validación, con `GridSearchCV` y `best_estimator_` como en el notebook de k-NN de la U5. `Edad` y `Na_a_K` ya están estandarizadas, y las categóricas codificadas van de 0 a 1 o de 0 a 2, así que todos los atributos tienen escalas comparables, como pide el apunte de la Unidad 5.
+# Probamos los k impares de 1 a 31 con las distancias euclidiana y Manhattan, y elegimos la combinación con mayor F1 macro de validación. `Edad` y `Na_a_K` ya están estandarizadas, y las categóricas codificadas van de 0 a 1 o de 0 a 2: todos los atributos tienen escalas comparables, y ninguno pesa más en la distancia solo por su escala.
 #
 # **Hipótesis.** Con k chico, el vecino más cercano puede ser un paciente de otra droga por un detalle que no importa (por ejemplo, el sexo). Con k grande, las drogas con pocos pacientes quedan en minoría entre los vecinos. Esperamos el mejor F1 en un k intermedio.
 
 # %%
+# k impares, como el range(1, 15, 2) de Unidad5.py pero más amplio, y GridSearchCV con best_estimator_ como en
+# el notebook de k-NN de la U5
 GRILLA_KNN = {"n_neighbors": list(range(1, 32, 2)), "metric": ["euclidean", "manhattan"]}
 
 busquedas_knn = {}   # nombre de la partición -> GridSearchCV ya ajustado
@@ -924,12 +933,12 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# La hipótesis se cumple en parte. Con k grande el F1 cae en las dos particiones, como esperábamos, porque las drogas con pocos pacientes quedan en minoría entre los vecinos: con k = 31 queda entre 0,52 y 0,69. El máximo, en cambio, no siempre está en un k intermedio: con 70/30 sí (k = 11, F1 de 0,852), pero con 80/20 el mejor es k = 1 (0,874), apenas por encima de k = 13. Para k chicos las curvas van en zigzag: con 13 pacientes o menos de `DrogaB` y de `DrogaC` en el entrenamiento, cada pliegue de validación tiene 2 o 3 de cada una, y un solo error mueve mucho el F1 macro.
+# La hipótesis se cumple en parte. Con k grande el F1 cae en las dos particiones, porque las drogas con pocos pacientes quedan en minoría entre los vecinos (con k = 31, entre 0,52 y 0,69). Pero el máximo no siempre está en un k intermedio: con 70/30 sí (k = 11, F1 de 0,852), y con 80/20 es k = 1 (0,874). Para k chicos las curvas van en zigzag, ya que cada pliegue de validación tiene solo 2 o 3 pacientes de `DrogaB` y de `DrogaC`, y un solo error mueve mucho el F1 macro.
 #
-# La distancia Manhattan queda por encima de la euclidiana en casi todos los k, y es la elegida en las dos particiones.
+# Con 80/20 nos quedamos con k = 1, con el mismo criterio que en los otros modelos (el mayor F1 promedio de validación), aunque la diferencia con k = 13 puede ser ruido y k = 1 es el más sensible a un único vecino de otra droga. La distancia Manhattan queda por encima de la euclidiana en casi todos los k y es la elegida en las dos particiones.
 
 # %% [markdown]
-# **Hipótesis.** Esperamos errores cerca de la frontera de `Na_a_K` (alrededor de 15), donde los vecinos de un paciente pueden ser de otras drogas con la misma presión y colesterol.
+# **Hipótesis.** Esperamos errores cerca de la frontera de `Na_a_K` (alrededor de 15), donde los vecinos de un paciente pueden ser de otras drogas con la misma presión y colesterol. Con k = 1, además, puede haber algún error lejos de esa frontera, si el único vecino es de otra droga.
 
 # %%
 graficar_matrices(mejores_knn, "k-NN: matrices de confusión")
@@ -942,9 +951,9 @@ metricas_knn.round(3)
 mal_clasificados(mejores_knn)
 
 # %% [markdown]
-# Se cumple la hipótesis en casi todos los errores. k-NN se equivoca con 5 pacientes en el test 80/20 (exactitud de 0,875, con k = 1) y con 6 en el 70/30 (0,900, con k = 11). Los pacientes de `DrogaY` mal clasificados tienen casi todos `Na_a_K` entre 15,16 y 16,59, cerca de la frontera, y reciben la droga que corresponde a su presión (`DrogaX` con presión normal y `DrogaA` con presión alta). En sentido contrario, uno de `DrogaX` con 12,86 se clasifica como `DrogaY` (con k = 1), y uno de `DrogaC` con presión baja y colesterol alto, como `DrogaX` (con k = 11).
+# Los errores son los que esperábamos. k-NN se equivoca con 5 pacientes en el test 80/20 (exactitud de 0,875, con k = 1) y con 6 en el 70/30 (0,900, con k = 11). Casi todos los de `DrogaY` mal clasificados tienen `Na_a_K` entre 15,16 y 16,59, cerca de la frontera, y reciben la droga que corresponde a su presión. En sentido contrario, uno de `DrogaX` con 12,86 se clasifica como `DrogaY` (k = 1), y uno de `DrogaC`, como `DrogaX` (k = 11).
 #
-# El único error lejos de la frontera es un paciente de `DrogaY` con 19,80, clasificado como `DrogaC` con k = 1: tiene presión baja y colesterol alto, el perfil de `DrogaC`, y con un solo vecino alcanza con que el más cercano sea de esa droga.
+# El único error lejos de la frontera es el que anticipábamos para k = 1: un paciente de `DrogaY` con 19,80, con presión baja y colesterol alto, el perfil de `DrogaC`, toma la droga de su único vecino.
 
 # %% [markdown]
 # ## 7. Comparación de modelos
@@ -967,13 +976,13 @@ for nombre in PARTICIONES:
 pd.DataFrame(filas).set_index(["Partición", "Modelo"]).round(3)
 
 # %% [markdown]
-# El árbol de decisión es el mejor en las dos particiones: vale 1 en las tres métricas. Con 70/30, Bayes ingenuo queda muy cerca, con un solo error (exactitud de 0,983), y supera a k-NN (0,900). Con 80/20, Bayes y k-NN quedan más lejos (0,900 y 0,875), y Bayes tiene la exhaustividad macro más baja (0,760) por los dos pacientes de `DrogaB` que clasifica mal. Parte de la diferencia entre particiones viene de que cada una eligió otra cantidad de intervalos y otro k, y de que los test son chicos.
+# El árbol de decisión es el mejor en las dos particiones, con 1 en las tres métricas. Con 70/30, Bayes ingenuo queda muy cerca (un solo error, exactitud de 0,983) y supera a k-NN (0,900). Con 80/20, Bayes y k-NN quedan más lejos (0,900 y 0,875), y Bayes tiene la exhaustividad macro más baja (0,760) por los dos pacientes de `DrogaB` que clasifica mal.
 #
-# El árbol es además el más fácil de interpretar: son 5 reglas con umbrales que se pueden leer y comprobar, como «relación sodio/potasio mayor a 14,8» o «presión alta y hasta 50 años». Bayes da probabilidades por intervalo, más difíciles de leer, y k-NN no da ninguna regla: solo puede justificar cada predicción con los pacientes parecidos.
+# El árbol gana porque en estos datos cada droga se define con umbrales sobre un atributo a la vez, que es la forma de las fronteras que arma un árbol. Bayes depende de que los cortes por cuantiles caigan cerca de esas fronteras, y k-NN suma todos los atributos en una sola distancia: un paciente cerca de una frontera puede tener vecinos de otra droga, como los de `DrogaY` con `Na_a_K` entre 15 y 17.
 #
-# El árbol gana porque en estos datos cada droga se define con umbrales sobre un atributo a la vez, que es la forma de las fronteras que arma un árbol. Bayes depende de que los cortes por cuantiles caigan cerca de esas fronteras y mira cada atributo por separado, y k-NN mezcla todos los atributos en una distancia, incluido `Sexo`, que no ayuda a distinguir las drogas.
+# También es el más fácil de interpretar: son 5 reglas que se pueden leer y comprobar, como «relación sodio/potasio mayor a 14,8» o «presión alta y hasta 50 años». Bayes da probabilidades por intervalo, y k-NN no da reglas, solo los pacientes parecidos.
 #
-# Elegimos el árbol de decisión (`max_depth = 4`, sin post-poda): tiene las mejores métricas y es el que mejor explica sus decisiones.
+# Elegimos el árbol de decisión (`max_depth = 4`, sin post-poda), por sus métricas y por su interpretabilidad.
 
 # %% [markdown]
 # ---
@@ -981,16 +990,16 @@ pd.DataFrame(filas).set_index(["Partición", "Modelo"]).round(3)
 #
 # ### Parte A – Regresión
 #
-# La ganancia depende casi solo del gasto en I+D: su correlación con `RyD_Spend` es de 0,999, y el árbol le da a esa variable una importancia de 0,989. Sacamos una fila duplicada y las 3 empresas con ganancias de hasta 476.000 dólares, que no seguían la relación con los gastos, y conservamos las atípicas en `Administration`, que tienen montos posibles.
+# La ganancia depende casi solo del gasto en I+D: su correlación con `RyD_Spend` es de 0,999 y el árbol le da a esa variable una importancia de 0,989. Antes de dividir sacamos una fila duplicada y 3 empresas que no seguían la relación con los gastos.
 #
-# El árbol con menor RMSE de validación tiene 156 hojas con 80/20 y 99 con 70/30. En test tiene un RMSE de 3.485 y 2.806 dólares, y un MAE de 1.046 y 940. Casi todas las empresas se predicen con menos de 1.000 dólares de error; las atípicas en `Administration` concentran cerca del 40 % del error cuadrático, porque el árbol predice casi solo con `RyD_Spend`.
+# El árbol elegido tiene en test un RMSE de 3.485 y 2.806 dólares (80/20 y 70/30) y un MAE de 1.046 y 940. Casi todas las empresas se predicen con menos de 1.000 dólares de error, y las atípicas en `Administration` concentran cerca del 40 % del error cuadrático, porque el árbol predice casi solo con `RyD_Spend`.
 #
 # ### Parte B – Clasificación
 #
-# Las drogas siguen reglas simples: `DrogaY` si la relación sodio/potasio supera 14,8, y las demás según la presión, la edad (hasta o desde los 50 años) y el colesterol. `Sexo` no influye. Las clases están desbalanceadas (del 45,5 % al 8 %), así que estratificamos las particiones y elegimos con el F1 macro.
+# Las drogas siguen reglas simples: `DrogaY` si la relación sodio/potasio supera 14,8, y las demás según la presión, la edad (hasta o desde los 50 años) y el colesterol. `Sexo` no influye.
 #
-# El árbol (6 hojas, sin poda) clasifica bien todo el test en las dos particiones, y cualquier poda baja su F1 de validación. Bayes ingenuo (4 y 9 intervalos) y k-NN (Manhattan, k = 1 y 11) llegan a una exactitud de entre 0,875 y 0,983, y fallan sobre todo con pacientes cerca de las fronteras de `Na_a_K` y de `Edad`. Elegimos el árbol, por sus métricas y porque sus reglas se pueden leer y verificar.
+# El árbol (6 hojas, sin poda) clasifica bien todo el test en las dos particiones. Bayes ingenuo y k-NN llegan a una exactitud de entre 0,875 y 0,983 y fallan sobre todo cerca de las fronteras de `Na_a_K` y de `Edad`. Elegimos el árbol, por sus métricas y porque sus reglas se pueden leer y verificar.
 #
 # ### Las dos particiones
 #
-# En las dos partes, el test 80/20 está contenido en el 70/30, así que los casos difíciles son los mismos y las diferencias entre particiones dependen también de cuántos casos fáciles se suman. En la Parte B, con test de 40 y 60 pacientes, un solo error mueve varios puntos las métricas macro; la validación cruzada da una estimación más estable.
+# En las dos partes, el test 80/20 está contenido en el 70/30, y los casos difíciles son los mismos. Con test de 40 y 60 pacientes, un solo error mueve varios puntos las métricas macro; la validación cruzada da una estimación más estable.

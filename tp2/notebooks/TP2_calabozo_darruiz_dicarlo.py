@@ -386,7 +386,7 @@ mejores.groupby("Partición", sort=False).head(5)[columnas].round(0)
 # %% [markdown]
 # Elegimos **`max_depth = 8`, `min_samples_leaf = 4` y `min_samples_split = 2` con 80/20, y `max_depth = 7`, `min_samples_leaf = 5` y `min_samples_split = 2` con 70/30**. Las primeras filas de cada partición empatan porque dan el mismo árbol: mientras `min_samples_split` no supere el doble de `min_samples_leaf`, no cambia nada, ya que un nodo más chico no se puede dividir en dos hojas permitidas. Ante un empate, `GridSearchCV` se queda con la primera combinación.
 #
-# La elección no es firme: la diferencia con otras combinaciones (1.777 contra 1.830 dólares de la quinta en 80/20) es mucho menor que el desvío del RMSE entre los pliegues (790 y 861 dólares), así que puede ser ruido. Igual nos quedamos con la de menor promedio, que es el criterio del apunte de la Unidad 4; además, las cinco mejores de cada partición son árboles muy parecidos, de 7 u 8 niveles con hojas de 4 o 5 empresas.
+# La elección no es firme: la diferencia con otras combinaciones (1.777 contra 1.830 dólares de la quinta en 80/20) es mucho menor que el desvío del RMSE entre los pliegues (790 y 861 dólares), así que puede ser ruido. Igual nos quedamos con la de menor promedio, porque las cinco mejores de cada partición son casi el mismo árbol: de 7 u 8 niveles, con hojas de 4 o 5 empresas.
 
 # %% [markdown]
 # ### 2.2 Resultados en test
@@ -674,8 +674,8 @@ drogas_cod.head()
 # No esperamos relaciones fuertes entre los atributos: la edad, el sexo, la presión, el colesterol y la relación sodio/potasio deberían variar de forma independiente en esta muestra.
 
 # %%
-# Correlación de Spearman, porque tres de las variables son ordinales (el notebook de árboles de clasificación
-# de la U4 la indica para ese caso)
+# Correlación de Spearman, porque tres de las variables son ordinales: compara el orden de los valores, y en las
+# ordinales los códigos solo dicen el orden, no la distancia entre categorías
 correlaciones = drogas_cod.drop(columns="Droga").corr(method="spearman")
 plt.figure(figsize=(6, 5))
 sns.heatmap(correlaciones, vmin=-1, vmax=1, center=0, cmap=sns.diverging_palette(20, 220, n=200),
@@ -1061,7 +1061,7 @@ plt.show()
 # %% [markdown]
 # Se cumple en parte. Con k grande el F1 cae en las dos particiones, porque las drogas con pocos pacientes quedan en minoría entre los vecinos. Pero el máximo no siempre está en un k intermedio: con 70/30 sí (k = 11), y con 80/20 es k = 1. Para k chicos las curvas van en zigzag, ya que cada pliegue de validación tiene solo 2 o 3 pacientes de `DrogaB` y de `DrogaC`, y un solo error mueve mucho el F1 macro. La distancia Manhattan queda por encima de la euclidiana en casi todos los k. Una explicación posible es la escala: la euclidiana eleva las diferencias al cuadrado, y eso achica las menores a 1 (como las de `Na_a_K` entre pacientes cerca de 15) frente a los saltos de 1 de las categóricas.
 #
-# En 80/20, k = 1 tiene el mayor F1 promedio, pero no se distingue de k más grandes: varios quedan a menos de un desvío entre pliegues (0,070). Además, el apunte de la Unidad 5 advierte que con un k muy chico el ruido toma importancia, y k = 1 depende de un único vecino, que puede ser de otra droga solo por el sexo. Por eso, en 80/20 tomamos el mejor de los k mayores que 1. En 70/30 el mejor ya es un k intermedio.
+# En 80/20, k = 1 tiene el mayor F1 promedio, pero no se distingue de k más grandes: varios quedan a menos de un desvío entre pliegues (0,070). Además, k = 1 es el más sensible de todos: depende de un único vecino, que puede ser de otra droga solo por el sexo. Por eso, en 80/20 tomamos el mejor de los k mayores que 1. En 70/30 el mejor ya es un k intermedio.
 
 # %%
 # En 80/20, el mejor de los k mayores que 1 (ver el texto anterior); en 70/30, la mejor configuración de la búsqueda

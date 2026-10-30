@@ -44,7 +44,7 @@ Para ejecutarlo y guardar las salidas sin abrirlo:
 jupyter nbconvert --to notebook --execute --inplace tp2/notebooks/TP2_calabozo_darruiz_dicarlo.ipynb
 ```
 
-La corrida completa tarda alrededor de un minuto, casi todo en las búsquedas de hiperparámetros de los árboles. Si cambia el código, hay que volver a ejecutar todo y revisar que los números de los textos coincidan con las salidas.
+La corrida completa tarda alrededor de dos minutos, casi todo en las búsquedas de hiperparámetros de los árboles. Si cambia el código, hay que volver a ejecutar todo y revisar que los números de los textos coincidan con las salidas.
 
 ## Entrega
 

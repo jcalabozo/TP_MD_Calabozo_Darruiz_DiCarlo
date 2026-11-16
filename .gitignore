@@ -11,6 +11,10 @@ __pycache__/
 .ipynb_checkpoints/
 */notebooks/*.ipynb
 
+# Resultados guardados de los cálculos que tardan varios minutos (búsquedas de hiperparámetros
+# y predicciones); cada notebook los genera la primera vez que se ejecuta
+*/data/*.pkl
+
 # Sistema operativo / editores
 .DS_Store
 Thumbs.db

@@ -21,7 +21,7 @@
 # | **Materia** | Minería de Datos, Tecnicatura Universitaria en Inteligencia Artificial |
 # | **Integrantes** | Josías Calabozo · Ismael Darruiz · Sebastián Di Carlo |
 #
-# **Objetivo:** recomendar un cultivo (`Clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`), con los modelos de las unidades 5 y 6: SVM con kernel lineal, SVM con kernel gaussiano (RBF) y Random Forest.
+# **Objetivo:** recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`), con los modelos de las unidades 5 y 6: SVM con kernel lineal, SVM con kernel gaussiano (RBF) y Random Forest.
 #
 # **Contenido:** 1. Preparación de datos, 2. SVM con kernel lineal, 3. SVM con kernel gaussiano (RBF), 4. Random Forest, 5. Comparación de modelos y 6. Conclusiones.
 #
@@ -60,10 +60,8 @@ RUTA_DATOS = "../data/crop_recommendation_geo.csv"
 # ### 1.1 Estructura y valores faltantes
 
 # %%
-# El archivo usa ";" como separador y coma decimal. La variable objetivo se llama "clase" en el archivo: la
-# renombramos "Clase", como en la consigna
+# El archivo usa ";" como separador y coma decimal
 datos = pd.read_csv(RUTA_DATOS, sep=";", decimal=",")
-datos = datos.rename(columns={"clase": "Clase"})
 datos.head()
 
 # %%
@@ -75,7 +73,7 @@ datos.info()
 datos[datos.isna().any(axis=1)]
 
 # %% [markdown]
-# Hay 50004 muestras (una menos que las 50005 que indica la consigna) con 16 variables predictoras numéricas y la variable objetivo, `Clase`, que es texto. Los únicos faltantes son 3, y están en la misma fila, la 25085 (`cafe`), a la que le faltan `ph`, `cec` y `humedad`. La eliminamos: imputarla con la media o la mediana inventaría 3 de sus 16 valores para recuperar una sola fila de más de 50.000.
+# Hay 50004 muestras (una menos que las 50005 que indica la consigna) con 16 variables predictoras numéricas y la variable objetivo, `clase`, que es texto. Los únicos faltantes son 3, y están en la misma fila, la 25085 (`cafe`), a la que le faltan `ph`, `cec` y `humedad`. La eliminamos: imputarla con la media o la mediana inventaría 3 de sus 16 valores para recuperar una sola fila de más de 50.000.
 
 # %% [markdown]
 # ### 1.2 Registros duplicados
@@ -86,11 +84,11 @@ print(f"Filas que tienen al menos una copia: {datos.duplicated(keep=False).sum()
 print(f"Copias de más: {datos.duplicated().sum()}")
 
 # Cultivo de las copias
-datos[datos.duplicated()]["Clase"].value_counts()
+datos[datos.duplicated()]["clase"].value_counts()
 
 # %%
 # Filas con los mismos 16 atributos y distinta clase: se repiten si no miramos la clase, pero no son copias
-ATRIBUTOS = list(datos.columns.drop("Clase"))
+ATRIBUTOS = list(datos.columns.drop("clase"))
 repetidas_sin_clase = datos.duplicated(subset=ATRIBUTOS, keep=False)
 copias = datos.duplicated(keep=False)
 datos[repetidas_sin_clase & ~copias].sort_values(ATRIBUTOS)
@@ -124,7 +122,7 @@ plt.show()
 # %% [markdown]
 # ### 1.4 Valores atípicos
 #
-# Si la cátedra cargó valores erróneos, deberían aparecer como puntos aislados y, en algunos casos, fuera del rango posible de la variable: el pH va de 0 a 14, y la humedad relativa y las fracciones de arcilla y arena, de 0 a 100 %. En cambio, en las variables asimétricas de 1.3 esperamos que la regla del rango intercuartílico marque muchos atípicos que son solo la cola de la distribución. Los diagramas de caja por cultivo sirven para distinguir los dos casos: un error queda lejos de los valores de su cultivo, y una cola es continua y propia de algunos cultivos.
+# Si el dataset tiene valores erróneos, deberían aparecer como puntos aislados y, en algunos casos, fuera del rango posible de la variable: el pH va de 0 a 14, y la humedad relativa y las fracciones de arcilla y arena, de 0 a 100 %. En cambio, en las variables asimétricas de 1.3 esperamos que la regla del rango intercuartílico marque muchos atípicos que son solo la cola de la distribución. Los diagramas de caja por cultivo sirven para distinguir los dos casos: un error queda lejos de los valores de su cultivo, y una cola es continua y propia de algunos cultivos.
 
 # %%
 # Función de U3_Clustering.ipynb (sección "Remocion de Outliers"), la misma que usamos en el TP1 y el TP2:
@@ -153,10 +151,10 @@ contar_atipicos(datos, ATRIBUTOS)
 
 # %%
 # Diagrama de caja de cada variable separado por cultivo, como el box plot por clase de RF_heartBinomial.ipynb (U6)
-ORDEN_CLASES = sorted(datos["Clase"].unique())
+ORDEN_CLASES = sorted(datos["clase"].unique())
 fig, axes = plt.subplots(4, 4, figsize=(18, 17))
 for ax, columna in zip(axes.flatten(), ATRIBUTOS):
-    sns.boxplot(data=datos, x=columna, y="Clase", order=ORDEN_CLASES, fliersize=1, ax=ax)
+    sns.boxplot(data=datos, x=columna, y="clase", order=ORDEN_CLASES, fliersize=1, ax=ax)
     ax.set(ylabel="")
 plt.tight_layout()
 fig.suptitle("Valores atípicos de cada variable según el cultivo (datos originales)", y=1.01)
@@ -197,8 +195,8 @@ datos_limpios.describe().round(2)
 
 # %%
 # Cantidad y porcentaje de muestras de cada cultivo, como target_balance de los notebooks de la U4 y la U5
-pd.DataFrame({"Cantidad": datos_limpios["Clase"].value_counts(),
-              "Porcentaje": (datos_limpios["Clase"].value_counts(normalize=True) * 100).round(2)})
+pd.DataFrame({"Cantidad": datos_limpios["clase"].value_counts(),
+              "Porcentaje": (datos_limpios["clase"].value_counts(normalize=True) * 100).round(2)})
 
 # %% [markdown]
 # Las clases quedan casi balanceadas, de 4891 muestras (`lenteja`, 9,82 %) a 5000 (`banana`, `cafe` y `coco`, 10,04 %). Es el leve desbalance que menciona la consigna, y viene de la limpieza: `lenteja` y `manzana`, las dos clases con más copias (1.2), son las que quedan con menos muestras.
@@ -228,7 +226,7 @@ plt.show()
 # %%
 # LabelEncoder, como pide la consigna: cada cultivo pasa a un número de 0 a 9, en orden alfabético
 codificador = LabelEncoder()
-y = codificador.fit_transform(datos_limpios["Clase"])
+y = codificador.fit_transform(datos_limpios["clase"])
 X = datos_limpios[ATRIBUTOS]
 pd.DataFrame({"Cultivo": codificador.classes_}).rename_axis("Código").T
 

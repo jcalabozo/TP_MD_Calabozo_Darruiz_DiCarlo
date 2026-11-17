@@ -4,7 +4,7 @@ Trabajo Práctico N° 3 de **Minería de Datos** (Tecnicatura Universitaria en I
 
 **Integrantes:** Josías Calabozo · Ismael Darruiz · Sebastián Di Carlo
 
-Clasificación multiclase con los modelos de las unidades 5 y 6: recomendar un cultivo (`Clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`, 50004 muestras), con SVM de kernel lineal, SVM de kernel gaussiano (RBF) y Random Forest, y comparar los tres. La cátedra modificó el dataset a propósito: el notebook detecta y elimina una fila con valores faltantes, 198 filas duplicadas y dos filas con valores imposibles.
+Clasificación multiclase con los modelos de las unidades 5 y 6: recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`, 50004 muestras), con SVM de kernel lineal, SVM de kernel gaussiano (RBF) y Random Forest, y comparar los tres. La cátedra modificó el dataset a propósito: el notebook detecta y elimina una fila con valores faltantes, 198 filas duplicadas y dos filas con valores imposibles.
 
 Todo se evalúa con validación cruzada estratificada de 5 folds sobre el conjunto limpio, con `random_state = 13`.
 

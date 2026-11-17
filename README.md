@@ -8,7 +8,7 @@ Trabajos Prácticos de **Minería de Datos** (Tecnicatura Universitaria en Intel
 |---|---|---|
 | [`tp1/`](tp1/) | Trabajo Práctico N° 1 | Pingüinos de Palmer: análisis exploratorio, reducción de dimensionalidad (PCA, Isomap, t-SNE) y clustering (K-means y jerárquico) |
 | [`tp2/`](tp2/) | Trabajo Práctico N° 2 | Árboles de decisión para regresión y clasificación, Bayes ingenuo y k-NN |
-| [`tp3/`](tp3/) | Trabajo Práctico N° 3 | Recomendación de cultivos: SVM (kernel lineal y RBF) y Random Forest. **Sin resolver:** solo tiene la estructura |
+| [`tp3/`](tp3/) | Trabajo Práctico N° 3 | Recomendación de cultivos: SVM (kernel lineal y RBF) y Random Forest, con validación cruzada estratificada |
 
 Cada TP tiene su README con lo que resuelve, sus archivos y cómo se entrega. Lo de esta página, el entorno y la forma de trabajar con los notebooks, es común a todos.
 
@@ -90,7 +90,7 @@ Requisito: **Python 3.12** (es la versión con la que se probó). Un solo entorn
    python -m ipykernel install --user --name tp-mineria --display-name "Python 3.12 (TP MD)"
    ```
 
-   Así aparece por nombre en VS Code (**Select Kernel → Jupyter Kernel…**) y en Jupyter, aunque la carpeta abierta no sea la del repo. El notebook del TP2 lo pide por ese nombre: si no está registrado, `jupyter nbconvert` no lo puede ejecutar.
+   Así aparece por nombre en VS Code (**Select Kernel → Jupyter Kernel…**) y en Jupyter, aunque la carpeta abierta no sea la del repo. Los notebooks del TP2 y el TP3 lo piden por ese nombre: si no está registrado, `jupyter nbconvert` no los puede ejecutar.
 
 5. Generar los notebooks a partir de los `.py`:
 

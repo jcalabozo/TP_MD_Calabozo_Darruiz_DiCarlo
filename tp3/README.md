@@ -15,13 +15,12 @@ El entorno y la forma de trabajar con los notebooks (jupytext) son comunes a tod
 ```
 tp3/
 ├── data/
-│   ├── crop_recommendation_geo.csv          dataset provisto por la cátedra
-│   └── busqueda_*.pkl                       resultados de las búsquedas de hiperparámetros (los genera el notebook, no se suben)
+│   └── crop_recommendation_geo.csv          dataset provisto por la cátedra
 ├── docs/
 │   └── TP3_enunciado.pdf                    consigna de la cátedra
 ├── notebooks/
 │   ├── TP3_calabozo_darruiz_dicarlo.py      notebook del TP, versionado en git (formato jupytext)
-│   └── TP3_calabozo_darruiz_dicarlo.ipynb   copia local generada con jupytext (no se sube)
+│   └── TP3_calabozo_darruiz_dicarlo.ipynb   notebook ejecutado, con sus salidas (también se sube)
 └── README.md
 ```
 
@@ -43,10 +42,8 @@ jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeou
 
 `--ExecutePreprocessor.timeout=-1` quita el límite de tiempo por celda, porque las búsquedas de hiperparámetros tardan más que el límite por defecto.
 
-**Tiempo de ejecución.** La primera vez tarda alrededor de 70 minutos en una PC con 16 núcleos (con menos núcleos, más): unos 17 la búsqueda del SVM lineal, 28 la del RBF, 9 la del Random Forest y 12 entrenar los tres modelos elegidos para las matrices de confusión, casi todo en el SVM lineal con C = 100. Cada uno de esos pasos guarda su resultado en `data/` (`busqueda_*.pkl` y `predicciones_fold1.pkl`), y las corridas siguientes lo leen de ahí y tardan menos de un minuto.
-
-Si cambia la grilla de una búsqueda, hay que borrar su archivo (`data/busqueda_svm_lineal.pkl`, `data/busqueda_svm_rbf.pkl` o `data/busqueda_random_forest.pkl`) y también `data/predicciones_fold1.pkl`, que depende de la configuración elegida. Si cambia la preparación de los datos, hay que borrar todos los `.pkl`. Después, revisar que los números de los textos coincidan con las salidas.
+**Tiempo de ejecución.** Una corrida completa tarda unos 70 minutos en una PC con 12 núcleos (con menos núcleos, más), casi todo en los SVM: la búsqueda del SVM lineal tarda unos 18, sobre todo por C = 100, que vuelve a entrenarse para su matriz de confusión. Los resultados de los modelos son siempre los mismos (todo usa `random_state = 13`); solo cambian los tiempos de entrenamiento, que dependen de la PC. Si se corrige solo texto, no hace falta volver a ejecutar: `jupytext --sync` pasa los cambios al `.ipynb` y conserva las salidas. Si cambia el código, hay que ejecutar todo de nuevo y revisar que los números de los textos coincidan con las salidas.
 
 ## Entrega
 
-La consigna pide el informe en formato `.ipynb`. Para entregar: sincronizar con el último `.py` del repositorio, ejecutar todo (**Restart & Run All** o el `nbconvert` de arriba) y subir `tp3/notebooks/TP3_calabozo_darruiz_dicarlo.ipynb`, con todas las salidas visibles, al campus.
+La consigna pide el informe en formato `.ipynb`. Para entregar: sincronizar con el último `.py` del repositorio, ejecutar todo si cambió el código (**Restart & Run All** o el `nbconvert` de arriba) y subir `tp3/notebooks/TP3_calabozo_darruiz_dicarlo.ipynb`, con todas las salidas visibles, al campus.

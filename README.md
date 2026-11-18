@@ -29,7 +29,7 @@ TP_MD_Calabozo_Darruiz_DiCarlo/
 ├── tp3/
 │   ├── data/                      # dataset provisto por la cátedra
 │   ├── docs/                      # consigna del trabajo
-│   ├── notebooks/                 # notebook del TP (.py en git, .ipynb local)
+│   ├── notebooks/                 # notebook del TP (.py y .ipynb ejecutado, los dos en git)
 │   └── README.md
 ├── jupytext.toml                  # empareja cada .ipynb con su .py
 ├── requirements.txt               # dependencias de los TP, con versiones fijas
@@ -43,7 +43,7 @@ TP_MD_Calabozo_Darruiz_DiCarlo/
 Los `.ipynb` son archivos JSON que guardan también las salidas (tablas, imágenes). En git eso genera diffs ilegibles y conflictos cada vez que alguien ejecuta el notebook. Por eso usamos [jupytext](https://jupytext.readthedocs.io/):
 
 - **El `.py`** (por ejemplo, `tp2/notebooks/TP2_calabozo_darruiz_dicarlo.py`) es el archivo que se sube a git. Tiene el mismo contenido que el notebook (código y textos), sin las salidas, y se lee como código normal.
-- **El `.ipynb`** es la copia local de cada uno, donde se trabaja y se ven los gráficos. Está en `.gitignore`.
+- **El `.ipynb`** es la copia local de cada uno, donde se trabaja y se ven los gráficos. Está en `.gitignore`, salvo el del TP3, que se sube ejecutado, con sus salidas.
 - `jupytext --sync` mantiene los dos archivos iguales. `jupytext.toml`, en la raíz, vale para los notebooks de todos los TP.
 
 ## Instalación (una sola vez)

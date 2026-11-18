@@ -10,10 +10,8 @@ __pycache__/
 # (el .ipynb es la copia local de cada integrante, con sus salidas)
 .ipynb_checkpoints/
 */notebooks/*.ipynb
-
-# Resultados guardados de los cálculos que tardan varios minutos (búsquedas de hiperparámetros
-# y predicciones); cada notebook los genera la primera vez que se ejecuta
-*/data/*.pkl
+# Excepción: el notebook del TP3 se sube ejecutado, con sus salidas
+!tp3/notebooks/TP3_calabozo_darruiz_dicarlo.ipynb
 
 # Sistema operativo / editores
 .DS_Store

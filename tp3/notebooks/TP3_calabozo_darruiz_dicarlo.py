@@ -21,11 +21,18 @@
 # | **Materia** | Minería de Datos, Tecnicatura Universitaria en Inteligencia Artificial |
 # | **Integrantes** | Josías Calabozo · Ismael Darruiz · Sebastián Di Carlo |
 #
-# **Objetivo:** recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`), con los modelos de las unidades 5 y 6: SVM con kernel lineal, SVM con kernel gaussiano (RBF) y Random Forest.
+# **Objetivo:** recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`), con SVM de kernel lineal, SVM de kernel gaussiano (RBF) y Random Forest.
 #
-# **Contenido:** 1. Preparación de datos, 2. SVM con kernel lineal, 3. SVM con kernel gaussiano (RBF), 4. Random Forest, 5. Comparación de modelos y 6. Conclusiones.
+# **Contenido:**
 #
-# Como pide la consigna, todos los modelos se evalúan con la misma validación cruzada estratificada de 5 folds sobre todo el conjunto limpio, con `random_state = 13`. Cuando reutilizamos o adaptamos código de los notebooks de clase, el comentario de la celda dice de cuál sale.
+# 1. Preparación de datos
+# 2. SVM con kernel lineal
+# 3. SVM con kernel gaussiano (RBF)
+# 4. Random Forest
+# 5. Comparación de modelos
+# 6. Conclusiones
+#
+# Todos los modelos se evalúan con la misma validación cruzada estratificada de 5 folds sobre el conjunto limpio, con `random_state = 13`. Cuando reutilizamos código de los notebooks de clase, el comentario de la celda dice de cuál sale.
 
 # %%
 # Análisis exploratorio
@@ -92,7 +99,7 @@ datos.info()
 datos[datos.isna().any(axis=1)]
 
 # %% [markdown]
-# Hay 50004 muestras, con 16 variables predictoras numéricas y la variable objetivo `clase` como texto. Eliminamos la única fila con faltantes, la 25085 (`cafe`), a la que le faltan `ph`, `cec` y `humedad`: imputarla con la media o la mediana inventaría 3 de sus 16 valores para recuperar una sola fila de más de 50.000.
+# Hay 50004 muestras, con 16 variables predictoras numéricas y la variable objetivo `clase` como texto. Eliminamos la única fila con faltantes, la 25085 (`cafe`, sin `ph`, `cec` ni `humedad`): imputarla inventaría 3 de sus 16 valores para recuperar una fila entre más de 50.000.
 
 # %% [markdown]
 # ### 1.2 Registros duplicados
@@ -106,12 +113,12 @@ print(f"Copias de más: {datos.duplicated().sum()}")
 datos[datos.duplicated()]["clase"].value_counts()
 
 # %% [markdown]
-# Eliminamos las 198 copias y nos quedamos con la primera aparición de cada fila. Cada fila repetida aparece exactamente dos veces, y casi todas las copias son de `lenteja` (109) y de `manzana` (55). Si quedaran, una copia podría caer en los folds de entrenamiento y la otra en el de evaluación, y el modelo se evaluaría con filas que ya vio; además, pesarían el doble en el entrenamiento.
+# Cada fila repetida aparece dos veces, y casi todas las copias son de `lenteja` y `manzana`. Eliminamos las 198 copias y nos quedamos con la primera aparición: si quedaran, una copia podría caer en entrenamiento y la otra en evaluación, y el modelo se evaluaría con filas que ya vio.
 
 # %% [markdown]
 # ### 1.3 Distribución de las variables predictoras
 #
-# Esperamos colas largas hacia la derecha en las variables del suelo (`N`, `P`, `soc`, `exch_bases` y `cec`), la lluvia y la elevación, que tienen un piso cerca de cero pero no un techo, y distribuciones más simétricas en el resto, que tienen rangos acotados.
+# Esperamos colas largas a la derecha en las variables del suelo (`N`, `P`, `soc`, `exch_bases` y `cec`), la lluvia y la elevación, que tienen piso pero no techo, y distribuciones más simétricas en el resto.
 
 # %%
 # Histograma de cada variable en una grilla de 4 × 4, como en U5_SVMClassifier_wine.ipynb (sección "Distribución
@@ -126,14 +133,23 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Se cumple en parte. `N`, `P`, `soc`, `lluvia` y `elevacion` tienen colas largas a la derecha, y `cec` también, aunque menos; `exch_bases` tiene varios picos. Pero las de rango acotado tampoco son simétricas: `ph` y `humedad` tienen dos picos (el pH, cerca de 5,5 y de 7), y `temperatura` y `temp_min_mensual` se acumulan en los valores altos, con una cola larga hacia el frío. Esos picos pueden ser grupos de cultivos; lo vemos por cultivo en 1.4.
+# Se cumple en parte. `N`, `P`, `soc`, `lluvia` y `elevacion` tienen colas largas a la derecha, y `cec` algo menos. Pero las de rango acotado tampoco son simétricas: `ph` (cerca de 5,5 y de 7) y `humedad` tienen dos picos, y `temperatura` y `temp_min_mensual`, una cola larga hacia el frío. Esos picos pueden ser grupos de cultivos.
 #
-# Además, cinco ejes se estiran mucho más allá de los datos: `ph` llega a 25 (la escala va de 0 a 14), `arcilla` y `humedad` a 142 y 148 %, y `temperatura` y `temp_max_mensual` a 44 y 53 °C, cuando casi todos los valores están por debajo de 30 y de 40. Los revisamos en 1.4.
+# Además, cinco ejes se estiran mucho más allá de los datos: `ph` llega a 25 (la escala va de 0 a 14), `arcilla` y `humedad` a 142 y 148 %, y `temperatura` y `temp_max_mensual` a 44 y 53 °C. Los revisamos en 1.4.
 
 # %% [markdown]
 # ### 1.4 Valores atípicos
 #
-# Contamos los atípicos de cada variable con la regla del rango intercuartílico, y con los diagramas de caja por cultivo vemos cuáles son errores y cuáles la cola de algún cultivo. Esperamos que la regla marque muchos en las variables con cola larga de 1.3, y que los errores sean pocos puntos aislados, lejos de los valores de su cultivo y a veces fuera del rango posible (el pH va de 0 a 14, y la humedad, la arcilla y la arena, de 0 a 100 %).
+# Esperamos que los ejes estirados de 1.3 sean unas pocas filas con valores fuera del rango posible (el pH va de 0 a 14, y la humedad, la arcilla y la arena, de 0 a 100 %), y que la regla del rango intercuartílico marque muchos atípicos en las variables con cola larga, concentrados en algunos cultivos.
+
+# %%
+# Filas con valores imposibles: pH mayor a 14, o humedad relativa, arcilla o arena por encima del 100 %
+fuera_de_rango = datos[(datos["ph"] > 14) | (datos["humedad"] > 100) | (datos["arcilla"] > 100)
+                       | (datos["arena"] > 100)]
+fuera_de_rango
+
+# %% [markdown]
+# Son dos filas, y las eliminamos como errores de carga: la 25111 (`cafe`) tiene un pH de 25,3, y la 30012 (`manzana`), un pH de 18, una arcilla de 142 % y una humedad de 148 %, además de las temperaturas de 44,6 y 53 °C que estiraban los otros dos ejes. No las corregimos con la mediana: si una fila tiene un valor imposible, el resto de sus valores tampoco es confiable. Seguimos sin ellas.
 
 # %%
 # Función de U3_Clustering.ipynb (sección "Remocion de Outliers"), la misma que usamos en el TP1 y el TP2:
@@ -158,34 +174,41 @@ def contar_atipicos(df, columnas):
     return pd.DataFrame(resultados)
 
 
-contar_atipicos(datos, ATRIBUTOS)
+# Desde acá, sin las dos filas con valores imposibles
+sin_imposibles = datos.drop(fuera_de_rango.index)
+contar_atipicos(sin_imposibles, ATRIBUTOS)
 
 # %%
-# Diagrama de caja de cada variable separado por cultivo, como el box plot por clase de RF_heartBinomial.ipynb (U6)
+# De qué cultivos son los atípicos: porcentaje de las filas de cada cultivo que la regla marca en cada variable, con
+# los límites de toda la columna. Mapa de calor de seaborn, como el de las correlaciones de U5_SVMClassifier_wine.ipynb
 ORDEN_CLASES = sorted(datos["clase"].unique())
-fig, axes = plt.subplots(4, 4, figsize=(18, 17))
+atipicos_por_cultivo = pd.DataFrame(index=ORDEN_CLASES)
+for col in ATRIBUTOS:
+    filas = sin_imposibles[sin_imposibles[col].notna()].groupby("clase").size()
+    dentro = remove_outliers_iqr(sin_imposibles, col).groupby("clase").size()
+    atipicos_por_cultivo[col] = 100 * (filas - dentro) / filas
+
+plt.figure(figsize=(16, 5.5))
+sns.heatmap(atipicos_por_cultivo, annot=True, fmt=".0f", cmap="Reds", annot_kws={"size": 8})
+plt.title("Porcentaje de las filas de cada cultivo que la regla del rango intercuartílico marca como atípicas")
+plt.xticks(rotation=45)
+plt.show()
+
+# %%
+# Diagrama de caja de cada variable separado por cultivo, como el box plot por clase de RF_heartBinomial.ipynb (U6),
+# en dos columnas para que cada panel sea más ancho
+fig, axes = plt.subplots(8, 2, figsize=(14, 32))
 for ax, columna in zip(axes.flatten(), ATRIBUTOS):
-    sns.boxplot(data=datos, x=columna, y="clase", order=ORDEN_CLASES, fliersize=1, ax=ax)
+    sns.boxplot(data=sin_imposibles, x=columna, y="clase", order=ORDEN_CLASES, fliersize=1, ax=ax)
     ax.set(ylabel="")
+fig.suptitle("Cada variable según el cultivo (sin las 2 filas con valores imposibles)", y=1.0)
 plt.tight_layout()
-fig.suptitle("Valores atípicos de cada variable según el cultivo (datos originales)", y=1.01)
 plt.show()
 
 # %% [markdown]
-# Se cumple, y solo eliminamos las filas con valores imposibles: los atípicos que marca la regla se quedan. La regla marca muchos en las variables con cola larga (3665 en `soc`, el 7,3 %; 3453 en `P`, el 6,9 %; 2825 en `elevacion`, el 5,6 %; 2162 en `cec` y 1483 en `N`), pero en los diagramas de caja son colas continuas y propias de algunos cultivos: los valores altos de `P` son sobre todo de `maiz` y `arroz`; los de `soc`, de `coco`, `arroz` y `banana`; y los de `elevacion`, de `banana`, `cafe` y `manzana`. Son valores posibles, y sacarlos borraría parte de lo que distingue a esos cultivos. Además, el SVM es robusto ante valores atípicos, porque se apoya en los vectores soporte (apunte de la Unidad 5, «Ventajas de SVM»).
+# Se cumple. La regla marca muchos atípicos solo en las variables con cola larga (3665 en `soc`, 3452 en `P`, 2825 en `elevacion`, 2162 en `cec`, 1482 en `N` y 1360 en `lluvia`), y el mapa muestra que se concentran en pocos cultivos: en `P`, el 23 % de las filas de `maiz` y el 15 % de las de `manzana`; en `soc`, el 31 % de `coco`; en `cec`, el 29 % de `garbanzo`, y en `elevacion`, alrededor del 11 % de `banana`, `cafe` y `frijol`. En los diagramas son colas continuas, no puntos sueltos (los de `garbanzo` en `cec` ni siquiera son atípicos dentro de su cultivo). Los conservamos: son valores posibles, y sacarlos borraría parte de lo que distingue a esos cultivos. Los dos puntos sueltos de `arroz` (bajo cero y a más de 4500 m) tampoco están fuera de rango, y es coherente que a esa altura haga frío.
 #
-# Los errores son unos pocos puntos aislados, muy lejos de los demás valores de su cultivo: dos en `ph` (uno de `cafe` y otro de `manzana`) y uno en cada una de `arcilla`, `humedad`, `temperatura`, `temp_max_mensual` y `radiacion_solar`, todos de `manzana`. Abajo los buscamos con los rangos posibles.
-#
-# Los diagramas muestran también cómo cambia cada variable entre cultivos. Ninguna separa sola a los 10, pero varias separan grupos: con las temperaturas, `lenteja`, `manzana` y `maiz` son los de clima más frío, y `coco` el más cálido y con menos variación; con el pH, `algodon`, `garbanzo`, `lenteja` y `manzana` están en suelos neutros, cerca de 7, y `banana`, `cafe` y `coco` en suelos ácidos, cerca de 5,5. `banana` y `cafe` se parecen en casi todas las variables, y `maiz` es el cultivo con los rangos más amplios.
-
-# %%
-# Filas con valores imposibles: pH mayor a 14, o humedad relativa, arcilla o arena por encima del 100 %
-fuera_de_rango = datos[(datos["ph"] > 14) | (datos["humedad"] > 100) | (datos["arcilla"] > 100)
-                       | (datos["arena"] > 100)]
-fuera_de_rango
-
-# %% [markdown]
-# Son dos filas, y las eliminamos como errores de carga. La 25111 (`cafe`) tiene un pH de 25,3. La 30012 (`manzana`) tiene seis valores imposibles o aislados a la vez: pH de 18, arcilla de 142 %, humedad de 148 %, temperatura media de 44,6 °C, media del mes más cálido de 53 °C y radiación solar de 6,27 MJ/m²/día (los puntos aislados de los diagramas de caja). No las corregimos con la mediana: en la 30012 habría que reemplazar más de un tercio de la fila, y si una fila tiene un valor imposible, sus otros valores tampoco son confiables.
+# Los diagramas muestran también en qué se diferencian los cultivos. Ninguna variable separa sola a los 10, pero varias separan grupos: `lenteja`, `manzana` y `maiz` son los de clima más frío y `coco` el más cálido, y `algodon`, `garbanzo`, `lenteja` y `manzana` tienen suelos neutros (pH cerca de 7), mientras que `banana`, `cafe` y `coco` los tienen ácidos (cerca de 5,5). `banana` y `cafe` se parecen en casi todas las variables, y `maiz` es el de rangos más amplios.
 
 # %% [markdown]
 # ### 1.5 Limpieza
@@ -199,7 +222,7 @@ print(f"Quedan {len(datos_limpios)} de {len(datos)} filas")
 datos_limpios.describe().round(2)
 
 # %% [markdown]
-# Quedan 49803 filas: sacamos 201 (la fila con faltantes, las 198 copias y las 2 filas con valores imposibles). Los máximos quedan en línea con el resto de cada distribución (`ph` llega a 8,95, `arcilla` a 68,63, `humedad` a 97,37, `temperatura` a 30,38 y `temp_max_mensual` a 38,22) y el mínimo de `radiacion_solar` sube a 7,58. El mínimo de `exch_bases` pasa a 1: el 0,1 de la fila 25111 era el único valor por debajo de 1, otra señal de que esa fila estaba mal cargada.
+# Quedan 49803 filas: sacamos la fila con faltantes, las 198 copias y las 2 filas con valores imposibles. Los máximos de `ph`, `arcilla`, `humedad`, `temperatura` y `temp_max_mensual` (8,95, 68,63, 97,37, 30,38 y 38,22) ya quedan en línea con el resto de cada distribución.
 
 # %% [markdown]
 # ### 1.6 Distribución de clases
@@ -210,12 +233,12 @@ pd.DataFrame({"Cantidad": datos_limpios["clase"].value_counts(),
               "Porcentaje": (datos_limpios["clase"].value_counts(normalize=True) * 100).round(2)})
 
 # %% [markdown]
-# Las clases quedan casi balanceadas, de 4891 muestras (`lenteja`, 9,82 %) a 5000 (`banana`, `cafe` y `coco`, 10,04 %): es el leve desbalance que menciona la consigna. `lenteja` y `manzana`, las dos clases con más copias en 1.2, son las que quedan con menos muestras.
+# Las clases quedan casi balanceadas, de 4891 filas (`lenteja`, 9,82 %) a 5000 (`banana`, `cafe` y `coco`, 10,04 %): es el leve desbalance que menciona la consigna. `lenteja` y `manzana`, las clases con más copias en 1.2, son las que quedan con menos filas.
 
 # %% [markdown]
 # ### 1.7 Correlaciones
 #
-# Buscamos variables que repitan la información de otra. Esperamos correlaciones fuertes entre las tres temperaturas y entre la humedad y la lluvia, y negativas entre arcilla y arena, que se reparten el mismo suelo, y entre la elevación y las temperaturas, porque en altura hace más frío.
+# Buscamos variables que repitan la información de otra. Esperamos correlaciones fuertes entre las tres temperaturas y entre la humedad y la lluvia, y negativas entre arcilla y arena y entre la elevación y las temperaturas.
 
 # %%
 # Matriz de correlación de Pearson, con el mapa de calor de U5_SVMClassifier_wine.ipynb
@@ -227,9 +250,9 @@ plt.title("Correlación de Pearson entre las variables predictoras (datos limpio
 plt.show()
 
 # %% [markdown]
-# Se cumple. La correlación más alta es la de `temperatura` con `temp_min_mensual` (0,95), y con `temp_max_mensual` es de 0,75; `humedad` y `lluvia` tienen 0,67, y `arcilla` y `arena`, −0,65. La elevación tiene −0,65 con `temp_max_mensual`, pero solo −0,43 con la temperatura media. Lo que no esperábamos es la relación del pH con el clima: baja con la humedad (−0,79) y con la lluvia (−0,78), es decir, los suelos de los lugares más húmedos y lluviosos son más ácidos, y sube con las bases intercambiables (0,72).
+# Se cumple. La más alta es la de `temperatura` con `temp_min_mensual` (0,95); `humedad` y `lluvia` tienen 0,67, `arcilla` y `arena` −0,65, y la elevación −0,65 con `temp_max_mensual`. Lo que no esperábamos es que el pH baje con la humedad (−0,79) y con la lluvia (−0,78): los suelos de los lugares más lluviosos son más ácidos.
 #
-# Salvo `temperatura` y `temp_min_mensual` (0,95), ningún par está tan correlacionado como para que una variable repita a la otra. Conservamos las 16 variables que plantea la consigna.
+# Solo `temperatura` y `temp_min_mensual` casi repiten la misma información. Igual conservamos las 16 variables que plantea la consigna.
 
 # %% [markdown]
 # ### 1.8 Codificación, estandarización y folds
@@ -255,7 +278,7 @@ conteos.loc["Total"] = conteos.sum()
 conteos
 
 # %% [markdown]
-# Cada fold tiene 9960 o 9961 filas, con entre 978 y 1000 de cada cultivo: la estratificación mantiene las proporciones de 1.6. Los tres modelos usan estos mismos folds.
+# Cada fold tiene 9960 o 9961 filas, con entre 978 y 1000 de cada cultivo: la estratificación mantiene las proporciones de 1.6.
 
 
 # %%
@@ -271,7 +294,7 @@ escalador = StandardScaler().set_output(transform="pandas")
 escalador.fit_transform(X.iloc[indices_train]).describe().T[["mean", "std", "min", "max"]].round(2)
 
 # %% [markdown]
-# La estandarización va dentro de cada modelo, así el escalador se ajusta solo con los 4 folds de entrenamiento de cada vuelta (apunte de la Unidad 4, «Estandarización vs Separación de datos»). En el entrenamiento del fold 1 todas las variables quedan con media 0 y desvío 1, y las colas largas de 1.3 se ven en los máximos: `P` llega a 15,32 desvíos, `N` a 13,82 y `soc` a 11,25, mientras que `ph` y `humedad` no pasan de 2,5.
+# La estandarización va dentro de cada modelo, así el escalador se ajusta solo con los folds de entrenamiento de cada vuelta. En el fold 1 todas las variables quedan con media 0 y desvío 1, y las colas largas de 1.3 se ven en los máximos: `P` llega a 15,32 desvíos y `N` a 13,82, mientras que `ph` y `humedad` no pasan de 2,5.
 
 # %% [markdown]
 # ---
@@ -279,9 +302,11 @@ escalador.fit_transform(X.iloc[indices_train]).describe().T[["mean", "std", "min
 #
 # ### 2.1 Búsqueda del parámetro C
 #
-# Esperamos que la exactitud suba con C hasta estabilizarse, y que el SVM lineal confunda los cultivos que en 1.4 se superponen en casi todas las variables, como `banana` y `cafe`. También esperamos tiempos largos: según el apunte de la Unidad 5 («SVM: Costo Computacional y el parámetro C»), lo que más pesa en el tiempo de un SVM es la cantidad de observaciones, y cada entrenamiento usa unas 40.000.
+# Esperamos que la exactitud suba con C hasta estabilizarse, que el lineal confunda cultivos que en 1.4 se superponen en casi todas las variables, como `banana` y `cafe`, y tiempos largos, porque cada entrenamiento usa unas 40.000 filas.
 #
-# Probamos 6 valores de C, de 0,001 a 100 en escala logarítmica: los 5 del ejemplo de la consigna y 0,001. Con 5 folds son 6 × 5 = 30 entrenamientos. Antes de ver los resultados fijamos el criterio para elegir, el mismo en los tres modelos: la mayor exactitud media en los 5 folds, porque con las clases casi balanceadas (1.6) pesa a todos los cultivos casi por igual.
+# Probamos 6 valores de C, de 0,001 a 100 en escala logarítmica (los 5 de la consigna y 0,001): con los 5 folds, 30 entrenamientos.
+#
+# El criterio para elegir es el mismo en los tres modelos: la exactitud media en los 5 folds, que con las clases casi balanceadas (1.6) pesa a todos los cultivos casi por igual. Las combinaciones a menos de un desvío entre folds de la mejor las tomamos como equivalentes, porque esa diferencia es del tamaño de lo que cambia la exactitud de un fold a otro, y entre ellas elegimos la que entrena más rápido.
 
 # %%
 # Las tres métricas que pide la consigna, con promedio weighted en la precisión y la exhaustividad, como
@@ -311,9 +336,17 @@ def tabla_resultados(resultados, hiperparametros):
     return tabla
 
 
+# El criterio para elegir: las combinaciones a menos de un desvío de la mejor son equivalentes, y va la más rápida
+def candidatas(resultados):
+    """Combinaciones a menos de un desvío de la mayor exactitud media, de la que entrena más rápido a la más lenta."""
+    mejor = resultados.loc[resultados["mean_test_Exactitud"].idxmax()]
+    limite = mejor["mean_test_Exactitud"] - mejor["std_test_Exactitud"]
+    return resultados[resultados["mean_test_Exactitud"] >= limite].sort_values("mean_fit_time")
+
+
 def mejor_configuracion(resultados):
-    """Fila de la combinación con mayor exactitud media en los 5 folds (la primera, si hay empate)."""
-    return resultados.loc[resultados["mean_test_Exactitud"].idxmax()]
+    """Configuración elegida: la primera de las candidatas, la que entrena más rápido."""
+    return candidatas(resultados).iloc[0]
 
 
 # %%
@@ -325,7 +358,7 @@ tabla_lineal = tabla_resultados(resultados_lineal, {"svc__C": "C"})
 tabla_lineal
 
 # %% [markdown]
-# Las columnas de exhaustividad y de exactitud son iguales, y lo van a ser en todos los modelos: la exhaustividad weighted pesa la de cada cultivo por su cantidad de muestras, y esa cuenta da la proporción total de aciertos. La precisión weighted queda muy cerca. Por eso, en los gráficos usamos solo la exactitud.
+# La exhaustividad weighted es igual a la exactitud, y lo va a ser en todos los modelos: pesar la de cada cultivo por su cantidad de filas da la proporción total de aciertos. La precisión queda muy cerca, así que en los gráficos usamos solo la exactitud.
 
 # %%
 # Exactitud media con el desvío entre folds como barra de error, y tiempo de entrenamiento, según C
@@ -340,19 +373,20 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Se cumple. La exactitud sube de 0,5657 con C = 0,001 a 0,6219 con C = 1, y desde ahí casi no cambia (0,6230 con C = 10 y 0,6232 con C = 100), con diferencias mucho menores que el desvío entre folds, de alrededor de 0,005. Los tiempos son largos: entre 50 y 84 segundos por fold hasta C = 1, y después se disparan, a 215 con C = 10 y 861 con C = 100, unas diez veces más que con C = 1 sin ganar exactitud. Con un C grande el modelo busca no clasificar mal ningún dato (apunte de la Unidad 5, «SVM: Margen blando»), y como los cultivos se superponen, ningún hiperplano lo logra: el entrenamiento tarda mucho más y la exactitud no mejora.
+# Se cumple. La exactitud sube de 0,5657 con C = 0,001 a 0,6219 con C = 1, y desde ahí casi no cambia (0,6232 con C = 100), con diferencias menores que el desvío entre folds. El tiempo, en cambio, se dispara: de 82 segundos por fold con C = 1 a 958 con C = 100. Con un C grande el modelo intenta no clasificar mal ningún dato, y como los cultivos se superponen, ningún hiperplano lo logra.
 #
-# Lo que no esperábamos es que se estanque tan abajo: el SVM lineal acierta el cultivo en 6 de cada 10 filas. Con 10 cultivos que se superponen en varias variables, los hiperplanos no alcanzan para separarlos.
+# Lo que no esperábamos es que se estanque tan abajo: el lineal acierta 6 de cada 10 filas, porque los hiperplanos no alcanzan para separar 10 cultivos que se superponen.
 
 # %% [markdown]
 # ### 2.2 Mejor configuración
 
 # %%
+# Combinaciones equivalentes a la mejor, de la más rápida a la más lenta: elegimos la primera
 mejor_lineal = mejor_configuracion(resultados_lineal)
-tabla_lineal.loc[[mejor_lineal.name]]
+tabla_lineal.loc[candidatas(resultados_lineal).index]
 
 # %% [markdown]
-# Elegimos **C = 100**, la de mayor exactitud media (0,6232, con un desvío de 0,0047). La elección no es firme: le gana a C = 10 por 0,0002 y a C = 1 por 0,0013, mucho menos que el desvío entre folds, así que en la práctica los tres rinden lo mismo, y C = 100 es el que más tarda.
+# Elegimos **C = 1**. La mejor exactitud media es la de C = 100 (0,6232, con un desvío de 0,0047), así que el límite es 0,6185 y quedan C = 1, 10 y 100 (C = 0,1 queda afuera por poco, con 0,6179). C = 1 es el más rápido de los tres y pierde solo 0,0013 de exactitud.
 
 # %% [markdown]
 # ---
@@ -360,9 +394,9 @@ tabla_lineal.loc[[mejor_lineal.name]]
 #
 # ### 3.1 Búsqueda de C y gamma
 #
-# Esperamos que el RBF supere al lineal, porque puede armar fronteras curvas, sobre todo en los cultivos que se superponen. Para gamma esperamos un máximo en valores intermedios, y que el mejor C dependa de gamma.
+# Esperamos que el RBF supere al lineal, porque puede armar fronteras curvas, que el mejor gamma esté en valores intermedios y que el mejor C dependa de gamma.
 #
-# Probamos 5 valores de C (de 0,1 a 1000) y 5 de gamma (de 0,001 a 10): los 4 del ejemplo de la consigna para cada uno, más C = 1000 y gamma = 10, para comprobar que el máximo no quede en un borde de la grilla. Son 25 combinaciones × 5 folds = 125 entrenamientos. El mapa de calor muestra la interacción entre C y gamma que pide la consigna, junto con el tiempo de cada combinación.
+# Probamos 5 valores de C (de 0,1 a 1000) y 5 de gamma (de 0,001 a 10): los 4 de la consigna para cada uno, más C = 1000 y gamma = 10, para que el máximo no quede en un borde de la grilla. Son 125 entrenamientos.
 
 # %%
 GRILLA_RBF = {"svc__C": [0.1, 1, 10, 100, 1000], "svc__gamma": [0.001, 0.01, 0.1, 1, 10]}
@@ -393,21 +427,20 @@ def graficar_interaccion(tabla, filas, columnas, titulo):
 graficar_interaccion(tabla_rbf, "C", "gamma", "SVM con kernel RBF según C y gamma")
 
 # %% [markdown]
-# Se cumple. El RBF llega a 0,886 de exactitud, contra 0,623 del lineal. La exactitud cae en los dos extremos de gamma: con gamma = 0,001 no pasa de 0,745, y con gamma = 10 se derrumba a entre 0,617 y 0,643 para C de 1 en adelante (0,206 con C = 0,1). Las mejores combinaciones forman una diagonal en el mapa: con gamma = 0,01 el mejor C es 1000 (0,845), con gamma = 0,1 es 100 (0,885) y con gamma = 1 es 10 (0,886). Cuanto mayor es gamma, menor es el C que necesita: los dos controlan la complejidad de la frontera (U5_SVMClassifier_wine.ipynb), y con un gamma mayor la frontera ya es más flexible. El máximo queda dentro de la grilla, así que no hace falta ampliarla.
+# Se cumple. El RBF llega a 0,886 de exactitud, contra 0,623 del lineal, y cae en los dos extremos de gamma: no pasa de 0,745 con gamma = 0,001 y se derrumba con gamma = 10. Las mejores combinaciones forman una diagonal: con gamma = 0,01 el mejor C es 1000, con 0,1 es 100 y con 1 es 10. Cuanto mayor es gamma, más flexible es la frontera y menos C necesita. El máximo queda dentro de la grilla.
 #
-# Con gamma = 0,1 están las combinaciones más rápidas (de 27 a 61 segundos por fold), y con gamma = 10 las más lentas (de 188 a 322), que además son las de peor exactitud.
-#
-# Con gamma = 10 la precisión se separa mucho de la exactitud: con C = 1, por ejemplo, es 0,8775 contra 0,6172. Eso quiere decir que casi todos los cultivos, cuando el modelo los predice, están bien, y que los errores se juntan en unos pocos cultivos que predice de más. Una explicación posible es que gamma regula la influencia de cada punto (U5_SVMClassifier_wine.ipynb): con gamma = 10 cada fila de entrenamiento influye solo en su entorno inmediato, y la frontera se ajusta a esas filas sin generalizar al fold de evaluación.
+# Con gamma = 10 la precisión se separa de la exactitud (con C = 1, 0,8775 contra 0,6172): casi todo lo que predice está bien, pero los errores se juntan en unos pocos cultivos que predice de más. Con un gamma tan grande cada fila influye solo en su entorno inmediato, así que la frontera se ajusta a las filas de entrenamiento sin generalizar. Eso también explica que sean las combinaciones más lentas (de 206 a 342 segundos por fold): casi todas las filas terminan como vectores soporte.
 
 # %% [markdown]
 # ### 3.2 Mejor configuración
 
 # %%
+# Combinaciones equivalentes a la mejor, de la más rápida a la más lenta: elegimos la primera
 mejor_rbf = mejor_configuracion(resultados_rbf)
-tabla_rbf.loc[[mejor_rbf.name]]
+tabla_rbf.loc[candidatas(resultados_rbf).index]
 
 # %% [markdown]
-# Elegimos **C = 10 y gamma = 1**, la de mayor exactitud media (0,8864, con un desvío de 0,0035). La segunda, C = 100 y gamma = 0,1, queda a menos de la mitad del desvío (0,8850), así que la diferencia no es firme. Esa combinación varía menos entre folds (desvío de 0,0018) y entrena en 37 segundos por fold en lugar de 93, pero el criterio de 2.1 elige la de mayor exactitud media.
+# Elegimos **C = 100 y gamma = 0,1**. La mejor es C = 10 y gamma = 1 (0,8864, con un desvío de 0,0035), así que el límite es 0,8829, y la única otra combinación que lo supera es C = 100 y gamma = 0,1 (0,8850). Es la más rápida de las dos y, además, la que menos varía entre folds de toda la grilla (desvío de 0,0018).
 
 # %% [markdown]
 # ---
@@ -415,11 +448,9 @@ tabla_rbf.loc[[mejor_rbf.name]]
 #
 # ### 4.1 Búsqueda de n_estimators y max_depth
 #
-# En 1.4, varios grupos de cultivos se separaban con un corte en una sola variable (la temperatura o el pH), que es lo que hace cada nodo de un árbol: esperamos que el Random Forest supere a los dos SVM. También esperamos que la profundidad pese más que la cantidad de árboles, porque un árbol de 5 niveles tiene a lo sumo 32 hojas para 10 cultivos, y que sumar árboles mejore cada vez menos mientras el tiempo crece en proporción.
+# En 1.4, varios grupos de cultivos se separaban con un corte en una sola variable (la temperatura o el pH), que es lo que hace cada nodo de un árbol: esperamos que el Random Forest supere a los dos SVM. También esperamos que la profundidad pese más que la cantidad de árboles (con 5 niveles hay a lo sumo 32 hojas para 10 cultivos) y que sumar árboles mejore cada vez menos mientras el tiempo crece en proporción.
 #
-# Probamos 5 valores de `n_estimators` (50, 100, 200, 300 y 500) y 7 de `max_depth` (de 5 a 30, de 5 en 5, y sin límite): 35 combinaciones × 5 folds = 175 entrenamientos. A las profundidades del ejemplo de la consigna (5, 10, 20 y sin límite) les sumamos 15, 25 y 30, para ver dónde se estabiliza la exactitud.
-#
-# El Random Forest no necesita datos estandarizados (notebook de árboles de clasificación de la U4), pero usamos el mismo pipeline que en los SVM. No cambia los resultados: estandarizar no cambia qué filas quedan de cada lado de un corte.
+# Probamos 5 valores de `n_estimators` (de 50 a 500) y 7 de `max_depth` (de 5 a 30 de 5 en 5, y sin límite): 175 entrenamientos. A las profundidades de la consigna les sumamos 15, 25 y 30, para ver dónde se estabiliza la exactitud. Usamos el mismo pipeline que en los SVM, aunque el Random Forest no necesita datos estandarizados: estandarizar no cambia qué filas quedan de cada lado de un corte.
 
 # %%
 GRILLA_RF = {"randomforestclassifier__n_estimators": [50, 100, 200, 300, 500],
@@ -437,25 +468,28 @@ tabla_rf.sort_values("Exactitud media", ascending=False)
 graficar_interaccion(tabla_rf, "max_depth", "n_estimators", "Random Forest según max_depth y n_estimators")
 
 # %% [markdown]
-# Se cumple. La profundidad es lo que más cambia la exactitud: con `max_depth = 5` no pasa de 0,646, con 10 llega a 0,843, con 15 a 0,904, y desde 25 se estabiliza entre 0,913 y 0,917. Para una misma profundidad, pasar de 50 a 500 árboles mejora menos de 0,01 (sin límite de profundidad, de 0,914 a 0,917), mientras el tiempo crece en proporción: sin límite de profundidad, de 9 a 70 segundos por fold. Todas las combinaciones desde `max_depth = 15` superan al mejor SVM RBF (0,8864).
+# Se cumple. La profundidad es lo que más cambia la exactitud: con `max_depth = 5` no pasa de 0,646, con 15 llega a 0,904 y desde 25 se estabiliza entre 0,913 y 0,917. Pasar de 50 a 500 árboles mejora menos de 0,01, mientras el tiempo crece en proporción (sin límite de profundidad, de 9 a 72 segundos por fold). Desde `max_depth = 15`, todas las combinaciones superan a la mejor del RBF (0,8864).
+#
+# Los tiempos tienen algo de ruido, porque se midieron con varios modelos entrenándose a la vez: con 500 árboles, `max_depth = 30` tarda más que sin límite (90 y 72 segundos), cuando limitar la profundidad solo puede ahorrar trabajo.
 
 # %% [markdown]
 # ### 4.2 Mejor configuración
 
 # %%
+# Combinaciones equivalentes a la mejor, de la más rápida a la más lenta: elegimos la primera
 mejor_rf = mejor_configuracion(resultados_rf)
-tabla_rf.loc[[mejor_rf.name]]
+tabla_rf.loc[candidatas(resultados_rf).index]
 
 # %% [markdown]
-# Elegimos **`n_estimators = 500` y `max_depth = 30`** (exactitud media de 0,9167, con un desvío de 0,0034). Con cuatro decimales empata con 500 árboles sin límite de profundidad, pero no son el mismo bosque: los desvíos son distintos (0,0034 contra 0,0036), así que aciertan distinto en cada fold, y eso quiere decir que el límite de 30 niveles corta algunos árboles. El criterio de 2.1 devuelve `max_depth = 30`. Como en los SVM, las diferencias con las combinaciones que siguen son chicas: 300 árboles sin límite de profundidad quedan a 0,0003 y entrenan en 50 segundos por fold, en lugar de 88.
+# Elegimos **50 árboles sin límite de profundidad**. La mejor es 500 árboles con `max_depth = 30` (0,9167, con un desvío de 0,0034), así que el límite es 0,9133. Lo superan 16 combinaciones, todas con `max_depth` de 20 en adelante, y la más rápida es la de 50 árboles sin límite (0,9137). Queda cerca del límite: con `max_depth = 30`, 50 árboles (0,9131) ya quedan afuera.
 
 # %% [markdown]
 # ### 4.3 Importancia de las variables
 #
-# Analizamos la importancia del bosque elegido, reentrenado con todos los datos limpios. Por 1.4, esperamos que las más importantes sean las temperaturas y el pH. Como `temperatura` y `temp_min_mensual` están muy correlacionadas (0,95, en 1.7), esperamos que se repartan la importancia, porque muchos cortes se pueden hacer con cualquiera de las dos.
+# Analizamos la importancia del bosque elegido, entrenado con todos los datos limpios. Por 1.4, esperamos que las más importantes sean las temperaturas y el pH, y que `temperatura` y `temp_min_mensual`, muy correlacionadas (0,95, en 1.7), se repartan la importancia.
 
 # %%
-# El bosque con la mejor configuración, reentrenado con los 49803 datos limpios (los 5 folds juntos). n_jobs=-1
+# El bosque con la configuración elegida, reentrenado con los 49803 datos limpios (los 5 folds juntos). n_jobs=-1
 # entrena los árboles en paralelo y no cambia el resultado
 bosque = crear_modelo(RandomForestClassifier(random_state=SEMILLA, n_jobs=-1)).set_params(**mejor_rf["params"])
 bosque.fit(X, y)
@@ -477,9 +511,9 @@ for barras in g.containers:
 plt.show()
 
 # %% [markdown]
-# Se cumple en parte. Las ocho variables más importantes son todas de clima o de ubicación, con importancias de 0,071 a 0,117: las tres temperaturas, la radiación solar, la lluvia, la humedad, la estacionalidad de las lluvias y la elevación. Las ocho del suelo quedan abajo, entre 0,029 y 0,045. El pH es la más importante del suelo (0,045), pero queda novena. Una explicación posible es que la separación entre suelos ácidos y neutros de 1.4 ya la dan las variables de clima, con las que el pH está muy correlacionado (−0,79 con la humedad y −0,78 con la lluvia, en 1.7).
+# Se cumple en parte. Las ocho primeras son de clima o ubicación (de 0,072 a 0,110) y las ocho del suelo quedan abajo (de 0,026 a 0,041). El pH es la primera del suelo, pero queda novena: puede ser que la separación entre suelos ácidos y neutros de 1.4 ya la den la humedad y la lluvia, con las que está muy correlacionado (−0,79 y −0,78).
 #
-# `temperatura` y `temp_min_mensual` se reparten la importancia, como esperábamos: las dos quedan arriba (0,083 y 0,117), y juntas suman 0,200, más del doble que cualquier otra variable.
+# `temp_min_mensual` y `temperatura` son las dos primeras y juntas suman alrededor de 0,2, más del doble que cualquier otra variable. Es coherente con que se repartan los cortes, aunque con este gráfico solo no se puede comprobar.
 
 # %% [markdown]
 # ---
@@ -488,7 +522,7 @@ plt.show()
 # ### 5.1 Métricas de la mejor configuración de cada algoritmo
 
 # %%
-# La fila de la mejor configuración de cada algoritmo en las tablas de 2, 3 y 4
+# La fila de la configuración elegida de cada algoritmo en las tablas de 2, 3 y 4
 COLUMNAS = list(tabla_lineal.columns.drop("C"))
 comparacion = pd.DataFrame([tabla_lineal.loc[mejor_lineal.name, COLUMNAS],
                             tabla_rbf.loc[mejor_rbf.name, COLUMNAS],
@@ -502,23 +536,23 @@ comparacion.insert(0, "Configuración", [
 comparacion
 
 # %% [markdown]
-# El Random Forest es el mejor en las tres métricas: 0,9167 de exactitud, 0,030 más que el SVM RBF (0,8864) y 0,29 más que el SVM lineal (0,6232). La diferencia con el RBF es casi nueve veces el desvío entre folds, así que, a diferencia de las elecciones dentro de cada modelo, esta sí es firme. Los tres son estables: el desvío entre folds no pasa de 0,005 en ninguno, y los del Random Forest y el RBF son casi iguales (0,0034 y 0,0035).
+# El Random Forest es el mejor en las tres métricas: 0,029 de exactitud más que el RBF y 0,29 más que el lineal. La diferencia con el RBF es unas ocho veces el desvío del Random Forest entre folds, así que, a diferencia de las configuraciones dentro de cada modelo, es firme. Los tres son estables (el desvío de la exactitud no pasa de 0,005), y el que menos varía es el RBF.
 #
-# En tiempo de entrenamiento, el Random Forest (88 segundos por fold) y el RBF (93) están parejos, y el lineal es el más lento (861) por el C = 100 elegido en 2.2: con C = 1, que rinde casi lo mismo, tarda 84 segundos. Estos tiempos se midieron durante las búsquedas, que entrenaban varios modelos a la vez, así que sirven para comparar los modelos entre sí, pero no son los de un modelo entrenado solo.
+# En tiempo de entrenamiento, el Random Forest es el más rápido, seguido por el RBF y el lineal. Como se midieron durante las búsquedas (4.1), los tiempos sirven para comparar los modelos entre sí, pero no son los de un modelo entrenado solo.
 
 # %% [markdown]
 # ### 5.2 Matrices de confusión
 #
-# Usamos el fold 1 (el mismo de 1.8), una de las dos opciones de la consigna, así las matrices salen del mismo esquema que las métricas: cada modelo se entrena con los otros 4 folds y predice unas 1000 filas de cada cultivo.
+# Usamos el fold 1 (el de 1.8), una de las opciones de la consigna: cada modelo se entrena con los otros 4 folds, como en las búsquedas.
 #
-# Por 1.4, esperamos errores en `banana` y `cafe`, que se parecen en casi todas las variables, y en `maiz`, el cultivo con los rangos más amplios. También esperamos que se confundan `garbanzo` y `lenteja`: en los diagramas de 1.4 los dos tienen suelos neutros y poca lluvia, y aunque `lenteja` es mucho más fría, `garbanzo` tiene una cola de temperaturas bajas que llega a sus valores.
+# Por 1.4, esperamos errores en `banana` y `cafe`, que se parecen en casi todas las variables, y en `maiz`, el de rangos más amplios. También esperamos que se confundan `garbanzo` y `lenteja`: tienen suelos neutros y poca lluvia, y `garbanzo` tiene una cola de temperaturas bajas que llega a las de `lenteja`.
 
 # %%
 # Primer fold de la validación cruzada (el mismo de 1.8): cada modelo se entrena con los otros 4 folds y predice este
 X_train, X_test = X.iloc[indices_train], X.iloc[indices_test]
 y_train, y_test = y[indices_train], y[indices_test]
 
-# La mejor configuración de cada algoritmo
+# La configuración elegida de cada algoritmo
 modelos = {"SVM lineal": crear_modelo(SVC(kernel="linear", random_state=SEMILLA)).set_params(**mejor_lineal["params"]),
            "SVM RBF": crear_modelo(SVC(kernel="rbf", random_state=SEMILLA)).set_params(**mejor_rbf["params"]),
            "Random Forest": crear_modelo(RandomForestClassifier(random_state=SEMILLA, n_jobs=-1)).set_params(
@@ -549,26 +583,26 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# Las exactitudes en el fold 1 (0,6182, 0,8888 y 0,9152) están cerca de las medias de los 5 folds de 5.1, así que este fold es representativo.
+# Las exactitudes en el fold 1 (0,6188, 0,8851 y 0,9109) están cerca de las medias de 5.1, así que el fold es representativo.
 #
-# Se cumple en parte. `maiz` es el cultivo que más les cuesta a los tres modelos, como esperábamos por sus rangos amplios: de sus 1000 filas, el Random Forest acierta 778, el RBF 787 y el lineal 388, y los errores se reparten entre todos los demás cultivos. El RBF, además, predice `maiz` de más: le asigna filas de casi todos los cultivos (64 de `arroz` y 49 de `algodon`, por ejemplo). También se cumple la confusión entre `garbanzo` y `lenteja`: 49 filas de `garbanzo` clasificadas como `lenteja` son el error más frecuente del Random Forest, y en el RBF son 42.
-#
-# Con `banana` y `cafe`, en cambio, solo se cumple para el lineal: confunde 200 filas de `banana` con `cafe` y 152 de `cafe` con `banana`, mientras que el RBF (25 y 17) y el Random Forest (26 y 15) casi no las confunden. Aunque se parecen en cada variable por separado (1.4), los dos modelos no lineales encuentran combinaciones de variables que las separan. El lineal tiene además otros errores grandes, como 188 filas de `algodon` clasificadas como `frijol`, 168 de `cafe` como `coco` y 147 de `manzana` como `maiz`. Un error que no anticipamos aparece en los dos mejores modelos: `arroz` clasificado como `coco` (55 filas en el RBF y 42 en el Random Forest). En los diagramas de caja de 1.4 son los dos cultivos de menor elevación y están entre los más cálidos, así que comparten buena parte de su rango en esas variables.
+# Se cumple en parte. `maiz` es el cultivo que más les cuesta a los tres (de sus 1000 filas, el Random Forest acierta 765, el RBF 728 y el lineal 391), con errores repartidos entre todos los demás, y `garbanzo` clasificado como `lenteja` es el error más frecuente del Random Forest (50 filas; 49 en el RBF). En cambio, `banana` y `cafe` solo se confunden mucho en el lineal (205 filas en un sentido y 147 en el otro): los modelos no lineales encuentran combinaciones de variables que las separan. Un error que no anticipamos es `arroz` clasificado como `coco` (45 filas en el RBF y 49 en el Random Forest): en 1.4 son los dos cultivos de menor elevación y están entre los más cálidos.
 
 # %% [markdown]
 # ### 5.3 Elección del modelo
 #
-# Elegimos **el Random Forest, con `n_estimators = 500` y `max_depth = 30`**. Es el que mejor clasifica, con una diferencia firme sobre el RBF (5.1), y sus errores están donde los anticipaba el análisis de 1.4. Es tan estable entre folds como el RBF (desvío de 0,0034 contra 0,0035), y su tiempo de entrenamiento es parecido, pero se puede bajar mucho casi sin perder exactitud: con 100 árboles sin límite de profundidad, la exactitud media es 0,9149 y entrena en unos 18 segundos por fold (4.1). Además, es el más fácil de interpretar: la importancia de las variables muestra en qué se apoya la recomendación, sobre todo en el clima (4.3). Los SVM no dan esa información de forma directa, y el apunte de la Unidad 5 («Desventajas de SVM») dice que son difíciles de interpretar, sobre todo con kernels no lineales.
+# Elegimos **el Random Forest, con 50 árboles sin límite de profundidad**.
 #
-# El SVM lineal queda descartado por su exactitud: separar estos cultivos con hiperplanos no alcanza. El RBF es la alternativa más cercana, pero clasifica peor y no permite ver en qué se basa cada recomendación.
+# En las métricas es el mejor, con una diferencia firme sobre el RBF. En estabilidad, el RBF varía menos entre folds (desvío de 0,0018 contra 0,0036), pero las dos variaciones son chicas al lado de esa diferencia. En interpretabilidad, un bosque de 50 árboles no se puede seguir como un árbol, pero es el único de los tres que muestra en qué variables se apoya (4.3): sobre todo, en el clima. El SVM lineal tiene un vector de coeficientes por cada par de cultivos, porque scikit-learn entrena un clasificador para cada par, y el RBF no da esa información. En tiempo de entrenamiento, también es el más rápido.
+#
+# El SVM lineal queda descartado por su exactitud. El RBF es la alternativa más cercana y la más estable, pero clasifica peor, tarda más y no muestra en qué se basa.
 
 # %% [markdown]
 # ---
 # ## 6. Conclusiones
 #
-# 1. El conjunto tenía tres problemas cargados a propósito: una fila con 3 valores faltantes, 198 filas duplicadas (sobre todo de `lenteja` y `manzana`) y 2 filas con valores imposibles (una con un pH de 25, y otra con seis valores imposibles o aislados, entre ellos un pH de 18 y una humedad de 148 %). Las eliminamos y quedaron 49803 filas, con las clases casi balanceadas. Los miles de atípicos que marca la regla del rango intercuartílico en las variables de suelo, la lluvia y la elevación son colas propias de algunos cultivos, y los conservamos.
-# 2. El SVM lineal no alcanza para este problema: su exactitud se estanca en 0,62 desde C = 1, y subir C solo multiplica el tiempo de entrenamiento (de 84 a 861 segundos por fold). Confunde sobre todo cultivos que se parecen en cada variable por separado, como `banana` y `cafe`.
-# 3. El SVM RBF llega a 0,886 de exactitud con C = 10 y gamma = 1. El mejor C depende de gamma: cuanto mayor es gamma, menor es el C que necesita, y con gamma = 10 el modelo se derrumba.
-# 4. El Random Forest, con 500 árboles de hasta 30 niveles, es el mejor modelo: llega a 0,917 de exactitud. La profundidad pesa mucho más que la cantidad de árboles, y las variables de clima pesan más que las del suelo.
-# 5. Dentro de cada modelo, las mejores configuraciones se diferencian menos que el desvío entre folds, y la elección entre ellas no es firme. Entre modelos, en cambio, las diferencias son claras.
-# 6. Elegimos el Random Forest por su exactitud, su estabilidad entre folds, su tiempo de entrenamiento y porque se puede interpretar. Sus errores están donde los anticipó el análisis exploratorio: en `maiz`, el cultivo con los rangos más amplios, y entre `garbanzo` y `lenteja`.
+# 1. El conjunto tenía una fila con faltantes, 198 filas duplicadas y 2 filas con valores imposibles, y las eliminamos. Los miles de atípicos que marca la regla del rango intercuartílico se concentran en pocos cultivos y son valores posibles, así que los conservamos.
+# 2. El SVM lineal no alcanza para este problema: se estanca en 0,62 de exactitud, y subir C solo multiplica el tiempo de entrenamiento.
+# 3. El SVM RBF llega a 0,886 de exactitud. El mejor C depende de gamma, y con gamma = 10 el modelo se derrumba. Elegimos C = 100 y gamma = 0,1 (0,885), que rinde lo mismo que la mejor, entrena más rápido y varía menos entre folds.
+# 4. El Random Forest es el mejor modelo: con 50 árboles sin límite de profundidad llega a 0,914 de exactitud. La profundidad pesa mucho más que la cantidad de árboles, y las variables de clima más que las del suelo.
+# 5. Dentro de cada modelo, varias configuraciones quedan a menos de un desvío de la mejor, y elegir la más rápida nos costó como mucho 0,003 de exactitud. Entre modelos, en cambio, las diferencias son claras.
+# 6. Elegimos el Random Forest por su exactitud, su tiempo de entrenamiento y porque muestra en qué variables se apoya. Sus errores están en parte donde los anticipó el análisis exploratorio: en `maiz` y entre `garbanzo` y `lenteja`.

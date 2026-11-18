@@ -4,7 +4,7 @@ Trabajo Práctico N° 3 de **Minería de Datos** (Tecnicatura Universitaria en I
 
 **Integrantes:** Josías Calabozo · Ismael Darruiz · Sebastián Di Carlo
 
-Clasificación multiclase con los modelos de las unidades 5 y 6: recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`, 50004 muestras), con SVM de kernel lineal, SVM de kernel gaussiano (RBF) y Random Forest, y comparar los tres. La cátedra modificó el dataset a propósito: el notebook detecta y elimina una fila con valores faltantes, 198 filas duplicadas y dos filas con valores imposibles.
+Clasificación multiclase con los modelos de las unidades 5 y 6: recomendar un cultivo (`clase`, 10 clases) a partir de 16 parámetros de suelo y clima (`crop_recommendation_geo.csv`, 50004 muestras), con SVM de kernel lineal, SVM de kernel gaussiano (RBF) y Random Forest, y comparar los tres. El notebook detecta y elimina una fila con valores faltantes, 198 filas duplicadas y dos filas con valores imposibles.
 
 Todo se evalúa con validación cruzada estratificada de 5 folds sobre el conjunto limpio, con `random_state = 13`.
 
@@ -42,7 +42,7 @@ jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeou
 
 `--ExecutePreprocessor.timeout=-1` quita el límite de tiempo por celda, porque las búsquedas de hiperparámetros tardan más que el límite por defecto.
 
-**Tiempo de ejecución.** Una corrida completa tarda unos 70 minutos en una PC con 12 núcleos (con menos núcleos, más), casi todo en los SVM: la búsqueda del SVM lineal tarda unos 18, sobre todo por C = 100, que vuelve a entrenarse para su matriz de confusión. Los resultados de los modelos son siempre los mismos (todo usa `random_state = 13`); solo cambian los tiempos de entrenamiento, que dependen de la PC. Si se corrige solo texto, no hace falta volver a ejecutar: `jupytext --sync` pasa los cambios al `.ipynb` y conserva las salidas. Si cambia el código, hay que ejecutar todo de nuevo y revisar que los números de los textos coincidan con las salidas.
+**Tiempo de ejecución.** Una corrida completa tarda alrededor de una hora en una PC con 12 núcleos (con menos núcleos, más), casi todo en las búsquedas de los SVM; solo el SVM lineal con C = 100 tarda unos 15 minutos por fold. Los resultados de los modelos son siempre los mismos (todo usa `random_state = 13`); solo cambian los tiempos de entrenamiento, que dependen de la PC. Si se corrige solo texto, no hace falta volver a ejecutar: `jupytext --sync` pasa los cambios al `.ipynb` y conserva las salidas. Si cambia el código, hay que ejecutar todo de nuevo y revisar que los números de los textos coincidan con las salidas.
 
 ## Entrega
 
